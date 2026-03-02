@@ -1,0 +1,266 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'runner-images.txt'
+      - 'target-cmake.json'
+      - 'prebuild.sh'
+      - 'build.sh'
+      - 'postbuild.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      expected-runner: ${{ steps.read-config.outputs.runner }}
+      target-name: ${{ steps.read-config.outputs.target-name }}
+      tarball-url: ${{ steps.read-config.outputs.tarball-url }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      
+      - name: Read configuration files
+        id: read-config
+        run: |
+          RUNNER=$(cat runner-images.txt | tr -d '[:space:]')
+          TARGET_NAME=$(jq -r '.target_name' target-cmake.json)
+          TARBALL_URL=$(jq -r '.tarball_url' target-cmake.json)
+          
+          echo "runner=$RUNNER" >> $GITHUB_OUTPUT
+          echo "target-name=$TARGET_NAME" >> $GITHUB_OUTPUT
+          echo "tarball-url=$TARBALL_URL" >> $GITHUB_OUTPUT
+          
+          echo "::notice::Expected runner: $RUNNER"
+          echo "::notice::Target name: $TARGET_NAME"
+          echo "::notice::Tarball URL: $TARBALL_URL"
+
+  build:
+    needs: prepare
+    runs-on: ${{ matrix.runner }}
+    
+    strategy:
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-22.04, macos-26, macos-26-intel, windows-2025]
+      fail-fast: false
+    
+    steps:
+      - name: Check runner match
+        id: runner-check
+        if: matrix.runner == needs.prepare.outputs.expected-runner
+        run: echo "match=true" >> $GITHUB_OUTPUT
+      
+      - name: Early exit - runner mismatch
+        if: matrix.runner != needs.prepare.outputs.expected-runner
+        run: |
+          echo "Skipping ${{ matrix.runner }} - expected ${{ needs.prepare.outputs.expected-runner }}"
+          exit 0
+      
+      - name: Checkout repository
+        if: steps.runner-check.outputs.match == 'true'
+        uses: actions/checkout@v6
+      
+      - name: Download tarball
+        if: steps.runner-check.outputs.match == 'true'
+        id: download
+        run: |
+          TARBALL_URL="${{ needs.prepare.outputs.tarball-url }}"
+          ARCHIVE_PATH="${{ runner.temp }}/source.tarball"
+          
+          echo "Downloading from: $TARBALL_URL"
+          
+          if command -v curl &> /dev/null; then
+            curl -L -o "$ARCHIVE_PATH" "$TARBALL_URL"
+          elif command -v wget &> /dev/null; then
+            wget -O "$ARCHIVE_PATH" "$TARBALL_URL"
+          else
+            echo "Error: Neither curl nor wget available"
+            exit 1
+          fi
+          
+          echo "archive-path=$ARCHIVE_PATH" >> $GITHUB_OUTPUT
+        shell: bash
+      
+      - name: Extract tarball
+        if: steps.runner-check.outputs.match == 'true'
+        id: extract
+        run: |
+          ARCHIVE_PATH="${{ steps.download.outputs.archive-path }}"
+          EXTRACT_DIR="${{ runner.temp }}/extracted"
+          
+          mkdir -p "$EXTRACT_DIR"
+          
+          echo "Extracting archive: $ARCHIVE_PATH"
+          
+          if [[ "$ARCHIVE_PATH" == *.zip ]]; then
+            echo "Detected ZIP archive"
+            unzip -q "$ARCHIVE_PATH" -d "$EXTRACT_DIR"
+          elif [[ "$ARCHIVE_PATH" == *.tar.gz ]] || [[ "$ARCHIVE_PATH" == *.tgz ]]; then
+            echo "Detected tar.gz archive"
+            tar -xzf "$ARCHIVE_PATH" -C "$EXTRACT_DIR"
+          elif [[ "$ARCHIVE_PATH" == *.tar.bz2 ]] || [[ "$ARCHIVE_PATH" == *.tbz2 ]]; then
+            echo "Detected tar.bz2 archive"
+            tar -xjf "$ARCHIVE_PATH" -C "$EXTRACT_DIR"
+          else
+            echo "Error: Unsupported archive format"
+            echo "Supported formats: .zip, .tar.gz, .tgz, .tar.bz2, .tbz2"
+            exit 1
+          fi
+          
+          echo "extract-dir=$EXTRACT_DIR" >> $GITHUB_OUTPUT
+          echo "Extraction complete"
+        shell: bash
+      
+      - name: Find CMakeLists.txt directory
+        if: steps.runner-check.outputs.match == 'true'
+        id: find-cmake
+        run: |
+          EXTRACT_DIR="${{ steps.extract.outputs.extract-dir }}"
+          
+          echo "Searching for CMakeLists.txt in: $EXTRACT_DIR"
+          
+          WORK_DIR=$(find "$EXTRACT_DIR" -type f -name "CMakeLists.txt" -printf '%h\n' -quit | head -n1)
+          
+          if [ -z "$WORK_DIR" ]; then
+            echo "::error::CMakeLists.txt not found in extracted tarball"
+            exit 1
+          fi
+          
+          echo "Found CMakeLists.txt in: $WORK_DIR"
+          echo "work-dir=$WORK_DIR" >> $GITHUB_OUTPUT
+        shell: bash
+      
+      - name: Copy build scripts
+        if: steps.runner-check.outputs.match == 'true'
+        run: |
+          WORK_DIR="${{ steps.find-cmake.outputs.work-dir }}"
+          
+          echo "Copying build scripts to: $WORK_DIR"
+          
+          cp runner-images.txt "$WORK_DIR/"
+          cp target-cmake.json "$WORK_DIR/"
+          cp prebuild.sh "$WORK_DIR/"
+          cp build.sh "$WORK_DIR/"
+          cp postbuild.sh "$WORK_DIR/"
+          
+          chmod +x "$WORK_DIR/prebuild.sh"
+          chmod +x "$WORK_DIR/build.sh"
+          chmod +x "$WORK_DIR/postbuild.sh"
+          
+          echo "Scripts copied and made executable"
+        shell: bash
+      
+      - name: Execute prebuild.sh
+        if: steps.runner-check.outputs.match == 'true'
+        working-directory: ${{ steps.find-cmake.outputs.work-dir }}
+        run: |
+          echo "Executing prebuild.sh..."
+          ./prebuild.sh
+        shell: bash
+      
+      - name: Execute build.sh
+        if: steps.runner-check.outputs.match == 'true'
+        working-directory: ${{ steps.find-cmake.outputs.work-dir }}
+        run: |
+          echo "Executing build.sh..."
+          ./build.sh
+        shell: bash
+      
+      - name: Execute postbuild.sh
+        if: steps.runner-check.outputs.match == 'true'
+        working-directory: ${{ steps.find-cmake.outputs.work-dir }}
+        run: |
+          echo "Executing postbuild.sh..."
+          ./postbuild.sh
+        shell: bash
+      
+      - name: Verify build artifact
+        if: steps.runner-check.outputs.match == 'true'
+        id: verify
+        run: |
+          WORK_DIR="${{ steps.find-cmake.outputs.work-dir }}"
+          ARTIFACT="$WORK_DIR/built_artefact.tar.bz2"
+          
+          if [ ! -f "$ARTIFACT" ]; then
+            echo "::error::built_artefact.tar.bz2 not found in $WORK_DIR"
+            exit 1
+          fi
+          
+          ARTIFACT_SIZE=$(stat -c%s "$ARTIFACT" 2>/dev/null || stat -f%z "$ARTIFACT" 2>/dev/null)
+          echo "::notice::Build artifact created: $ARTIFACT_SIZE bytes"
+          
+          echo "artifact-path=$ARTIFACT" >> $GITHUB_OUTPUT
+        shell: bash
+      
+      - name: Upload build artifacts
+        if: steps.runner-check.outputs.match == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            ${{ steps.find-cmake.outputs.work-dir }}/built_artefact.tar.bz2
+            runner-images.txt
+            target-cmake.json
+            prebuild.sh
+            build.sh
+            postbuild.sh
+          retention-days: 90
+          if-no-files-found: error
+
+  release:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: ./artifacts
+      
+      - name: Generate release tag
+        id: tag
+        run: |
+          TARGET_NAME="${{ needs.prepare.outputs.target-name }}"
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          TAG="${TARGET_NAME}_T${TIMESTAMP}"
+          
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "::notice::Release tag: $TAG"
+      
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ needs.prepare.outputs.target-name }} Build
+          body: |
+            Build release for ${{ needs.prepare.outputs.target-name }}
+            
+            **Runner**: ${{ needs.prepare.outputs.expected-runner }}
+            **Build Time**: ${{ github.event.head_commit.timestamp }}
+            
+            ## Artifacts
+            - `built_artefact.tar.bz2` - Build output
+            - `runner-images.txt` - Runner configuration
+            - `target-cmake.json` - Target configuration
+            - `prebuild.sh` - Pre-build script
+            - `build.sh` - Build script
+            - `postbuild.sh` - Post-build script
+          files: |
+            artifacts/built_artefact.tar.bz2
+            artifacts/runner-images.txt
+            artifacts/target-cmake.json
+            artifacts/prebuild.sh
+            artifacts/build.sh
+            artifacts/postbuild.sh
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
