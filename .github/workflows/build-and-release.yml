@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths:
+      - '.github/workflows/**'
       - 'runner-images.txt'
       - 'target-cmake.json'
       - 'prebuild.sh'
