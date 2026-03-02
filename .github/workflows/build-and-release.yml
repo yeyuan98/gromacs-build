@@ -172,14 +172,55 @@ jobs:
           
           echo "Searching for CMakeLists.txt in: $EXTRACT_DIR"
           
-          WORK_DIR=$(find "$EXTRACT_DIR" -type f -name "CMakeLists.txt" -printf '%h\n' -quit | head -n1)
+          # First, check for CMakeLists.txt in the root of EXTRACT_DIR
+          if [ -f "$EXTRACT_DIR/CMakeLists.txt" ]; then
+            WORK_DIR="$EXTRACT_DIR"
+            echo "Found top-level CMakeLists.txt in: $WORK_DIR"
+          else
+            # If not in root, search for wrapper directory (single subdirectory)
+            SUBDIR_COUNT=$(find "$EXTRACT_DIR" -mindepth 1 -maxdepth 1 -type d | wc -l)
+            
+            if [ "$SUBDIR_COUNT" -eq 1 ]; then
+              # Single subdirectory - likely a wrapper directory
+              WRAPPER_DIR=$(find "$EXTRACT_DIR" -mindepth 1 -maxdepth 1 -type d)
+              
+              if [ -f "$WRAPPER_DIR/CMakeLists.txt" ]; then
+                WORK_DIR="$WRAPPER_DIR"
+                echo "Found CMakeLists.txt in wrapper directory: $WORK_DIR"
+              else
+                # Search recursively as fallback
+                WORK_DIR=$(find "$WRAPPER_DIR" -type f -name "CMakeLists.txt" -printf '%h\n' -quit | head -n1)
+                echo "Found CMakeLists.txt in subdirectory: $WORK_DIR"
+              fi
+            else
+              # Multiple subdirectories - search recursively
+              WORK_DIR=$(find "$EXTRACT_DIR" -type f -name "CMakeLists.txt" -printf '%h\n' -quit | head -n1)
+              echo "Found CMakeLists.txt in: $WORK_DIR"
+            fi
+          fi
           
           if [ -z "$WORK_DIR" ]; then
             echo "::error::CMakeLists.txt not found in extracted tarball"
             exit 1
           fi
           
-          echo "Found CMakeLists.txt in: $WORK_DIR"
+          # Verify this is a proper GROMACS CMakeLists.txt (check for project() command)
+          if ! grep -q "project" "$WORK_DIR/CMakeLists.txt"; then
+            echo "::warning::CMakeLists.txt found but doesn't appear to be a main project file"
+            echo "Contents of $WORK_DIR/CMakeLists.txt:"
+            head -10 "$WORK_DIR/CMakeLists.txt"
+            
+            # Try to find a better CMakeLists.txt
+            echo "Searching for main CMakeLists.txt..."
+            for cmakefile in $(find "$EXTRACT_DIR" -name "CMakeLists.txt" -type f); do
+              if grep -q "project" "$cmakefile" 2>/dev/null; then
+                WORK_DIR=$(dirname "$cmakefile")
+                echo "Found main CMakeLists.txt in: $WORK_DIR"
+                break
+              fi
+            done
+          fi
+          
           echo "work-dir=$WORK_DIR" >> $GITHUB_OUTPUT
         shell: bash
       
