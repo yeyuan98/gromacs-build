@@ -72,9 +72,13 @@ jobs:
         id: download
         run: |
           TARBALL_URL="${{ needs.prepare.outputs.tarball-url }}"
-          ARCHIVE_PATH="${{ runner.temp }}/source.tarball"
+          
+          # Extract filename from URL
+          FILENAME=$(basename "$TARBALL_URL" | cut -d'?' -f1)
+          ARCHIVE_PATH="${{ runner.temp }}/$FILENAME"
           
           echo "Downloading from: $TARBALL_URL"
+          echo "Saving to: $ARCHIVE_PATH"
           
           if command -v curl &> /dev/null; then
             curl -L -o "$ARCHIVE_PATH" "$TARBALL_URL"
@@ -86,6 +90,7 @@ jobs:
           fi
           
           echo "archive-path=$ARCHIVE_PATH" >> $GITHUB_OUTPUT
+          echo "Download complete: $(ls -lh "$ARCHIVE_PATH")"
         shell: bash
       
       - name: Extract tarball
@@ -99,20 +104,60 @@ jobs:
           
           echo "Extracting archive: $ARCHIVE_PATH"
           
+          # Detect archive type by extension or file content
+          ARCHIVE_TYPE=""
+          
           if [[ "$ARCHIVE_PATH" == *.zip ]]; then
-            echo "Detected ZIP archive"
-            unzip -q "$ARCHIVE_PATH" -d "$EXTRACT_DIR"
+            ARCHIVE_TYPE="zip"
           elif [[ "$ARCHIVE_PATH" == *.tar.gz ]] || [[ "$ARCHIVE_PATH" == *.tgz ]]; then
-            echo "Detected tar.gz archive"
-            tar -xzf "$ARCHIVE_PATH" -C "$EXTRACT_DIR"
+            ARCHIVE_TYPE="tar.gz"
           elif [[ "$ARCHIVE_PATH" == *.tar.bz2 ]] || [[ "$ARCHIVE_PATH" == *.tbz2 ]]; then
-            echo "Detected tar.bz2 archive"
-            tar -xjf "$ARCHIVE_PATH" -C "$EXTRACT_DIR"
+            ARCHIVE_TYPE="tar.bz2"
+          elif [[ "$ARCHIVE_PATH" == *.tar ]]; then
+            ARCHIVE_TYPE="tar"
           else
-            echo "Error: Unsupported archive format"
-            echo "Supported formats: .zip, .tar.gz, .tgz, .tar.bz2, .tbz2"
-            exit 1
+            # Fallback: detect using file command
+            FILE_TYPE=$(file -b "$ARCHIVE_PATH")
+            echo "Detected file type: $FILE_TYPE"
+            
+            if echo "$FILE_TYPE" | grep -qi "zip"; then
+              ARCHIVE_TYPE="zip"
+            elif echo "$FILE_TYPE" | grep -qi "gzip"; then
+              ARCHIVE_TYPE="tar.gz"
+            elif echo "$FILE_TYPE" | grep -qi "bzip2"; then
+              ARCHIVE_TYPE="tar.bz2"
+            elif echo "$FILE_TYPE" | grep -qi "tar archive"; then
+              ARCHIVE_TYPE="tar"
+            fi
           fi
+          
+          echo "Archive type: $ARCHIVE_TYPE"
+          
+          # Extract based on detected type
+          case "$ARCHIVE_TYPE" in
+            zip)
+              echo "Extracting ZIP archive..."
+              unzip -q "$ARCHIVE_PATH" -d "$EXTRACT_DIR"
+              ;;
+            tar.gz)
+              echo "Extracting tar.gz archive..."
+              tar -xzf "$ARCHIVE_PATH" -C "$EXTRACT_DIR"
+              ;;
+            tar.bz2)
+              echo "Extracting tar.bz2 archive..."
+              tar -xjf "$ARCHIVE_PATH" -C "$EXTRACT_DIR"
+              ;;
+            tar)
+              echo "Extracting tar archive..."
+              tar -xf "$ARCHIVE_PATH" -C "$EXTRACT_DIR"
+              ;;
+            *)
+              echo "Error: Unsupported or undetectable archive format"
+              echo "File type: $(file -b "$ARCHIVE_PATH")"
+              echo "Supported formats: .zip, .tar.gz, .tgz, .tar.bz2, .tbz2, .tar"
+              exit 1
+              ;;
+          esac
           
           echo "extract-dir=$EXTRACT_DIR" >> $GITHUB_OUTPUT
           echo "Extraction complete"
