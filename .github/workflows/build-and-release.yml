@@ -245,13 +245,25 @@ jobs:
           echo "artifact-path=$ARTIFACT" >> $GITHUB_OUTPUT
         shell: bash
       
+      - name: Prepare artifacts for upload
+        if: steps.runner-check.outputs.match == 'true'
+        run: |
+          WORK_DIR="${{ steps.find-cmake.outputs.work-dir }}"
+          
+          echo "Copying built_artefact.tar.bz2 to workspace..."
+          cp "$WORK_DIR/built_artefact.tar.bz2" .
+          
+          echo "Artifacts ready for upload:"
+          ls -lh built_artefact.tar.bz2 runner-images.txt target-cmake.json *.sh
+        shell: bash
+      
       - name: Upload build artifacts
         if: steps.runner-check.outputs.match == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
           path: |
-            ${{ steps.find-cmake.outputs.work-dir }}/built_artefact.tar.bz2
+            built_artefact.tar.bz2
             runner-images.txt
             target-cmake.json
             prebuild.sh
