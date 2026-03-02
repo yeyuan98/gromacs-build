@@ -1,4 +1,4 @@
 {
-  "target_name": "hello-world",
-  "tarball_url": "https://gitee.com/yeyuan98/oss-binary/raw/master/hello-world-1.0.0.tar.gz"
+  "target_name": "GROMACS-2026.0-CPU",
+  "tarball_url": "https://ftp.gromacs.org/gromacs/gromacs-2026.0.tar.gz"
 }

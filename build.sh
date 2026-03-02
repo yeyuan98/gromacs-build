@@ -2,26 +2,83 @@
 set -e
 
 echo "==================================="
-echo "BUILD: Starting build process"
+echo "BUILD: Building GROMACS 2026.0"
 echo "==================================="
 
+# Get source directory (where CMakeLists.txt is located)
+SOURCE_DIR=$(pwd)
+BUILD_DIR="$SOURCE_DIR/build"
+INSTALL_PREFIX="$SOURCE_DIR/install"
+
+echo "Source directory: $SOURCE_DIR"
+echo "Build directory: $BUILD_DIR"
+echo "Install prefix: $INSTALL_PREFIX"
+echo ""
+
 # Create build directory
-mkdir -p build
-cd build
+mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
 
 # Configure with CMake
-echo "Configuring with CMake..."
-cmake .. \
+echo "Configuring GROMACS with CMake..."
+echo ""
+
+cmake "$SOURCE_DIR" \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX=install
+    -DGMX_BUILD_OWN_FFTW=ON \
+    -DGMX_GPU=OFF \
+    -DGMX_MPI=OFF \
+    -DGMX_DOUBLE=OFF \
+    -DGMX_SIMD=AVX2_256 \
+    -DBUILD_SHARED_LIBS=OFF \
+    -DGMXAPI=OFF \
+    -DGMX_INSTALL_NBLIB_API=OFF \
+    -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+    -DREGRESSIONTEST_DOWNLOAD=OFF
 
-# Build
-echo "Building..."
-make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+echo ""
+echo "CMake configuration complete"
+echo ""
 
-# Test the binary
-echo "Testing the built binary..."
-./hello
+# Build with parallel make
+NUM_JOBS=$(nproc)
+echo "Building GROMACS with $NUM_JOBS parallel jobs..."
+echo ""
 
-echo "Build process complete"
+make -j"$NUM_JOBS"
+
+echo ""
+echo "Build complete"
+echo ""
+
+# Install (no sudo needed, relative path)
+echo "Installing GROMACS to $INSTALL_PREFIX..."
+make install
+
+echo ""
+echo "Installation complete"
+echo ""
+
+# Verify installation
+if [ ! -f "$INSTALL_PREFIX/bin/gmx" ]; then
+    echo "::error::GROMACS binary not found at $INSTALL_PREFIX/bin/gmx"
+    exit 1
+fi
+
+echo "Verifying installation:"
+ls -lh "$INSTALL_PREFIX/bin/gmx"
+echo ""
+
+# Display build summary
+echo "==================================="
+echo "GROMACS Build Summary:"
+echo "  Version: 2026.0"
+echo "  Build type: Release"
+echo "  Libraries: Static"
+echo "  SIMD: AVX2_256"
+echo "  Threading: Thread-MPI"
+echo "  GPU: OFF"
+echo "  Precision: Single/Mixed"
+echo "  Install path: $INSTALL_PREFIX"
+echo "==================================="
 echo ""
