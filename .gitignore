@@ -1,0 +1,11 @@
+# Test example
+hello-world-src
+
+# Build artifacts
+built_artefact.tar.bz2
+build/
+artifact/
+
+# OS specific files
+.DS_Store
+Thumbs.db

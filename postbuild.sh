@@ -9,27 +9,43 @@ echo "==================================="
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Example: Package build artifacts
-# Uncomment and modify as needed:
-# 
-# # Define what to include in the artifact
-# ARTIFACT_CONTENTS=(
-#     "build/bin"
-#     "build/lib"
-#     "build/include"
-# )
-# 
-# # Create the artifact
-# tar -cjf built_artefact.tar.bz2 "${ARTIFACT_CONTENTS[@]}"
-
-# For demonstration: create an empty artifact
-# Replace this with actual build output
-if [ ! -f "built_artefact.tar.bz2" ]; then
-    echo "Creating placeholder artifact..."
-    echo "Build artifact placeholder" > artifact_placeholder.txt
-    tar -cjf built_artefact.tar.bz2 artifact_placeholder.txt
-    rm artifact_placeholder.txt
+# Verify build directory exists
+if [ ! -d "build" ]; then
+    echo "::error::Build directory not found"
+    exit 1
 fi
+
+# Verify the binary was built
+if [ ! -f "build/hello" ]; then
+    echo "::error::Binary 'build/hello' not found"
+    exit 1
+fi
+
+# Create artifact directory structure
+echo "Creating artifact directory structure..."
+mkdir -p artifact/bin
+
+# Copy the binary
+cp build/hello artifact/bin/
+
+# Create README for the artifact
+cat > artifact/README.txt <<EOF
+Hello World C++ Application
+Built by GitHub Actions
+
+Contents:
+  bin/hello - The Hello World executable
+
+To run:
+  ./bin/hello
+EOF
+
+# Create the artifact
+echo "Creating artifact tarball..."
+tar -cjf built_artefact.tar.bz2 -C artifact .
+
+# Clean up
+rm -rf artifact
 
 # Verify artifact was created
 if [ ! -f "built_artefact.tar.bz2" ]; then
@@ -41,4 +57,9 @@ ARTIFACT_SIZE=$(stat -c%s "built_artefact.tar.bz2" 2>/dev/null || stat -f%z "bui
 
 echo "Postbuild complete"
 echo "Artifact created: built_artefact.tar.bz2 ($ARTIFACT_SIZE bytes)"
+
+# Show artifact contents
+echo ""
+echo "Artifact contents:"
+tar -tjf built_artefact.tar.bz2
 echo ""

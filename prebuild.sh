@@ -11,19 +11,21 @@ if [ -f /etc/os-release ]; then
     echo "Detected OS: $PRETTY_NAME"
 fi
 
-# Example: Install build dependencies
-# Uncomment and modify as needed:
-# if command -v apt-get &> /dev/null; then
-#     sudo apt-get update
-#     sudo apt-get install -y cmake g++ make
-# elif command -v brew &> /dev/null; then
-#     brew install cmake
-# fi
+# Install C++ build toolchain
+if command -v apt-get &> /dev/null; then
+    echo "Installing build dependencies..."
+    sudo apt-get update
+    sudo apt-get install -y cmake g++ make
+elif command -v brew &> /dev/null; then
+    echo "Installing build dependencies via Homebrew..."
+    brew install cmake
+fi
 
-# Example: Set environment variables
-# export CMAKE_PREFIX_PATH=/usr/local
-# export CC=gcc
-# export CXX=g++
+# Verify installations
+echo "Verifying toolchain..."
+cmake --version
+g++ --version | head -n1
+make --version | head -n1
 
 echo "Prebuild environment setup complete"
 echo ""

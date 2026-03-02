@@ -1,4 +1,4 @@
 {
-  "target_name": "gromacs",
-  "tarball_url": "https://example.com/path/to/source.tar.gz"
+  "target_name": "hello-world",
+  "tarball_url": "https://gitee.com/yeyuan98/oss-binary/raw/master/hello-world-1.0.0.tar.gz"
 }
