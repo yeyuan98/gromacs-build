@@ -26,14 +26,15 @@ echo ""
 cmake "$SOURCE_DIR" \
     -DCMAKE_BUILD_TYPE=Release \
     -DGMX_BUILD_OWN_FFTW=ON \
-    -DGMX_GPU=OFF \
-    -DGMX_MPI=OFF \
+    -DGMX_GPU=CUDA \
+    -DGMX_MPI=ON \
     -DGMX_DOUBLE=OFF \
     -DGMX_SIMD=AVX2_256 \
     -DBUILD_SHARED_LIBS=OFF \
     -DGMXAPI=OFF \
     -DGMX_INSTALL_NBLIB_API=OFF \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+    -DCMAKE_CUDA_ARCHITECTURES="80;86;89;90" \
     -DREGRESSIONTEST_DOWNLOAD=OFF
 
 echo ""
@@ -76,8 +77,8 @@ echo "  Version: 2026.0"
 echo "  Build type: Release"
 echo "  Libraries: Static"
 echo "  SIMD: AVX2_256"
-echo "  Threading: Thread-MPI"
-echo "  GPU: OFF"
+echo "  Threading: Thread-MPI + MPI"
+echo "  GPU: CUDA (80;86;89;90)"
 echo "  Precision: Single/Mixed"
 echo "  Install path: $INSTALL_PREFIX"
 echo "==================================="

@@ -34,18 +34,19 @@ echo ""
 
 # Create README for the artifact
 cat > "$INSTALL_DIR/README.txt" << 'EOF'
-GROMACS 2026.0 - CPU Build
-================================
+GROMACS 2026.0 - CUDA GPU Build
+===============================
 
 Build Configuration:
   Version:        2026.0
   Build type:     Release
   Libraries:      Static
   SIMD:           AVX2_256
-  Threading:      Thread-MPI
-  GPU:            OFF
+  Threading:      Thread-MPI + MPI
+  GPU:            CUDA (80;86;89;90)
   Precision:      Single/Mixed
   Platform:       Ubuntu 24.04 AMD64
+  CUDA:           12.6 Toolkit
 
 Installation:
   tar -xjf built_artefact.tar.bz2
@@ -53,6 +54,29 @@ Installation:
 Usage:
   source bin/GMXRC
   gmx --version
+
+Supported GPUs:
+  Consumer: RTX 30 series (3060-3090 Ti)
+             RTX 40 series (4050-4090)
+  Datacenter: A100, A10, A30, A40 (Ampere)
+              H100, H200 (Hopper)
+              L40, L40S (Ada)
+  Compute Capabilities: 8.0, 8.6, 8.9, 9.0
+
+Requirements:
+  - NVIDIA GPU with Compute Capability 8.0+
+  - CUDA 12.1+ compatible driver
+  - RTX 50 series NOT supported (requires CUDA 13.0+)
+
+Multi-GPU:
+  - MPI enabled for multi-GPU simulations
+  - Use mpirun/mpiexec for parallel execution
+  - GPU-aware MPI auto-detected at compile time
+
+Troubleshooting:
+  If GPU-aware MPI fails to auto-detect:
+    export GMX_FORCE_GPU_AWARE_MPI=1
+  (Rare case, most systems work automatically)
 
 For more information:
   https://manual.gromacs.org/current/
