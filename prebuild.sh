@@ -29,27 +29,11 @@ if command -v apt-get &> /dev/null; then
         git \
         zlib1g-dev \
         wget \
-        pkg-config \
-        openmpi-bin openmpi-common libopenmpi-dev
+        pkg-config
 else
     echo "::error::This build script only supports apt-get (Ubuntu/Debian)"
     exit 1
 fi
-
-# Install NVIDIA CUDA Toolkit 12.6
-echo "Installing NVIDIA CUDA Toolkit 12.6..."
-wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
-sudo dpkg -i cuda-keyring_1.1-1_all.deb
-sudo apt-get update
-sudo apt-get install -y cuda-toolkit-12-6
-
-# Set CUDA environment variables
-export PATH=/usr/local/cuda/bin:$PATH
-export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
-
-# Verify CUDA installation
-echo "Verifying CUDA installation..."
-nvcc --version
 
 # Verify toolchain versions
 echo ""

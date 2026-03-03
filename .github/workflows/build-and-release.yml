@@ -346,63 +346,25 @@ jobs:
             - GROMACS Version: 2026.0
             - Build Type: Release (static libraries)
             - Platform: Ubuntu 24.04 AMD64
-            - CUDA Toolkit: 12.6
             - SIMD: AVX2_256
-            - MPI: Enabled (OpenMPI for multi-GPU)
-            - Threading: MPI (OpenMPI)
+            - Threading: Thread-MPI (built-in)
+            - GPU: OFF
             - Precision: Single/Mixed
 
-            ## GPU Support
-            CUDA Compute Capabilities: 80;86;89;90
-
-            Supported GPU Architectures:
-            - Ampere (Compute Capability 8.0-8.6)
-              * Datacenter: A100 (8.0), A10/A40/A16/A2 (8.6)
-              * Consumer: RTX 30 series (8.6)
-            - Ada Lovelace (Compute Capability 8.9)
-              * Workstation: L40, L40S (8.9)
-              * Consumer: RTX 40 series (8.9)
-            - Hopper (Compute Capability 9.0)
-              * Datacenter: H100, H200 (9.0)
-
-            NOT Supported:
-            - RTX 50 series (Blackwell, Compute Capability 12.0) - Requires CUDA 13.0+
-            - Pascal generation (Compute Capability 6.1) - Too old
-            - All AMD GPUs
-
-            CUDA Architecture Selection:
-            GROMACS builds GPU kernels at compile-time for specific compute capabilities.
-            This binary contains pre-compiled kernels for Ampere (80;86), Ada (89), and Hopper (90).
-            GPUs with incompatible compute capabilities will fail with "no kernel image is available" error.
-
             ## System Requirements
-            - NVIDIA GPU with Compute Capability 8.0 or higher
-            - CUDA 12.1+ compatible driver
             - Linux x86_64 (glibc 2.17+)
-            - Minimum 4GB RAM per GPU (8GB+ recommended)
+            - CPU with AVX2 support
+            - Minimum 4GB RAM (8GB+ recommended)
 
             ## Runtime Dependencies (Ubuntu 24.04)
             This build requires the following system packages:
             ```bash
             sudo apt update
-            sudo apt install libgomp1 libopenmpi3t64
+            sudo apt install libgomp1
             ```
 
-            For GPU support:
-            - NVIDIA driver 535+ (CUDA 12.1+ compatible)
-
             Note: Static libraries (libgromacs, FFTW) are bundled in the binary.
-            Only OpenMP (libgomp1) and OpenMPI (libopenmpi3t64) runtime libraries are required.
-
-            ## Multi-GPU Support
-            - MPI enabled for multi-GPU and multi-node simulations
-            - GPU-aware MPI auto-detected at compile time (OpenMPI 4.1+)
-            - No user configuration required for standard usage
-            - Use mpirun/mpiexec for parallel execution
-
-            Troubleshooting:
-            If GPU-aware MPI fails to auto-detect (rare):
-              export GMX_FORCE_GPU_AWARE_MPI=1
+            Only OpenMP (libgomp1) runtime library is required.
 
             ## Installation
             1. Download built_artefact.tar.bz2
@@ -410,11 +372,10 @@ jobs:
             3. Setup environment (choose one):
                - Quick setup: ./setup_gromacs.sh
                - Or manually: source bin/GMXRC
-            4. Verify: gmx_mpi --version
+            4. Verify: gmx --version
 
             Expected output should show:
-            - GPU support: CUDA
-            - MPI support: Yes
+            - GPU support: OFF
             - SIMD instructions: AVX2_256
 
             ## Artifacts
@@ -432,7 +393,6 @@ jobs:
             ## Documentation
             - GROMACS Manual: https://manual.gromacs.org/current/
             - Installation Guide: https://manual.gromacs.org/current/install-guide/index.html
-            - GPU Support: https://manual.gromacs.org/current/user-guide/mdrun-gpu.html
           files: |
             artifacts/built_artefact.tar.bz2
             artifacts/runner-images.txt

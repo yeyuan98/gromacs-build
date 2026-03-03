@@ -16,9 +16,8 @@ if [ ! -d "$INSTALL_DIR" ]; then
 fi
 
 # Verify GROMACS binary exists
-# When MPI is enabled, binary is named gmx_mpi instead of gmx
-if [ ! -f "$INSTALL_DIR/bin/gmx_mpi" ]; then
-    echo "::error::GROMACS binary not found at $INSTALL_DIR/bin/gmx_mpi"
+if [ ! -f "$INSTALL_DIR/bin/gmx" ]; then
+    echo "::error::GROMACS binary not found at $INSTALL_DIR/bin/gmx"
     exit 1
 fi
 
@@ -39,19 +38,18 @@ echo ""
 
 # Create README for the artifact
 cat > "$INSTALL_DIR/README.txt" << 'EOF'
-GROMACS 2026.0 - CUDA GPU Build
-===============================
+GROMACS 2026.0 - CPU Build
+==========================
 
 Build Configuration:
   Version:        2026.0
   Build type:     Release
   Libraries:      Static (bundled in binary)
   SIMD:           AVX2_256
-  Threading:      MPI
-  GPU:            CUDA (80;86;89;90)
+  Threading:      Thread-MPI
+  GPU:            OFF
   Precision:      Single/Mixed
   Platform:       Ubuntu 24.04 AMD64
-  CUDA:           12.6 Toolkit
 
 Installation:
   tar -xjf built_artefact.tar.bz2
@@ -59,39 +57,18 @@ Installation:
 
 Runtime Requirements (Ubuntu 24.04):
   sudo apt update
-  sudo apt install libgomp1 libopenmpi3t64
-
-  For GPU support:
-    - NVIDIA driver 535+ (CUDA 12.1+ compatible)
-    - NVIDIA GPU with Compute Capability 8.0+
+  sudo apt install libgomp1
 
 Usage:
   source bin/GMXRC
-  gmx_mpi --version
-
-  Multi-GPU:
-    mpirun -np 4 gmx_mpi mdrun -deffnm simulation
-
-Supported GPUs:
-  Consumer: RTX 30 series (3060-3090 Ti)
-             RTX 40 series (4050-4090)
-  Datacenter: A100, A10, A30, A40 (Ampere)
-              H100, H200 (Hopper)
-              L40, L40S (Ada)
-  Compute Capabilities: 8.0, 8.6, 8.9, 9.0
-
-  RTX 50 series NOT supported (requires CUDA 13.0+)
-
-Troubleshooting:
-  If GPU-aware MPI fails to auto-detect:
-    export GMX_FORCE_GPU_AWARE_MPI=1
+  gmx --version
 
 For more information:
   https://manual.gromacs.org/current/
   https://www.gromacs.org/
 
 Contents:
-  bin/        - Executables (gmx_mpi, GMXRC, completion scripts)
+  bin/        - Executables (gmx, GMXRC, completion scripts)
   include/    - Header files for development
   share/      - Force fields, templates, man pages
 EOF
@@ -107,7 +84,7 @@ export GMXDATA="$GMX_DIR/share/gromacs"
 export GROMACS_DIR="$GMX_DIR"
 echo "GROMACS environment set up"
 echo "GMX bin: $GMX_DIR/bin"
-echo "GMX version: $($GMX_DIR/bin/gmx_mpi --version 2>&1 | head -1)"
+echo "GMX version: $($GMX_DIR/bin/gmx --version 2>&1 | head -1)"
 EOF
 chmod +x "$INSTALL_DIR/setup_gromacs.sh"
 
@@ -228,7 +205,7 @@ echo ""
 
 # Verify artifact integrity
 echo "Verifying artifact integrity..."
-if tar -tjf built_artefact.tar.bz2 | grep -q "bin/gmx_mpi"; then
+if tar -tjf built_artefact.tar.bz2 | grep -q "bin/gmx"; then
     echo "✓ GROMACS binary found in artifact"
 else
     echo "::error::GROMACS binary not found in artifact"

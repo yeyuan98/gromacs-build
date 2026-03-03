@@ -26,15 +26,14 @@ echo ""
 cmake "$SOURCE_DIR" \
     -DCMAKE_BUILD_TYPE=Release \
     -DGMX_BUILD_OWN_FFTW=ON \
-    -DGMX_GPU=CUDA \
-    -DGMX_MPI=ON \
+    -DGMX_GPU=OFF \
+    -DGMX_MPI=OFF \
     -DGMX_DOUBLE=OFF \
     -DGMX_SIMD=AVX2_256 \
     -DBUILD_SHARED_LIBS=OFF \
     -DGMXAPI=OFF \
     -DGMX_INSTALL_NBLIB_API=OFF \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-    -DCMAKE_CUDA_ARCHITECTURES="80;86;89;90" \
     -DREGRESSIONTEST_DOWNLOAD=OFF
 
 echo ""
@@ -61,15 +60,13 @@ echo "Installation complete"
 echo ""
 
 # Verify installation
-# When MPI is enabled, binary is named gmx_mpi instead of gmx
-GMX_BIN="gmx_mpi"
-if [ ! -f "$INSTALL_PREFIX/bin/$GMX_BIN" ]; then
-    echo "::error::GROMACS binary not found at $INSTALL_PREFIX/bin/$GMX_BIN"
+if [ ! -f "$INSTALL_PREFIX/bin/gmx" ]; then
+    echo "::error::GROMACS binary not found at $INSTALL_PREFIX/bin/gmx"
     exit 1
 fi
 
 echo "Verifying installation:"
-ls -lh "$INSTALL_PREFIX/bin/$GMX_BIN"
+ls -lh "$INSTALL_PREFIX/bin/gmx"
 echo ""
 
 # Display build summary
@@ -79,8 +76,8 @@ echo "  Version: 2026.0"
 echo "  Build type: Release"
 echo "  Libraries: Static"
 echo "  SIMD: AVX2_256"
-echo "  Threading: Thread-MPI + MPI"
-echo "  GPU: CUDA (80;86;89;90)"
+echo "  Threading: Thread-MPI"
+echo "  GPU: OFF"
 echo "  Precision: Single/Mixed"
 echo "  Install path: $INSTALL_PREFIX"
 echo "==================================="

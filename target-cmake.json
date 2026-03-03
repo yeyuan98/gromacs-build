@@ -1,4 +1,4 @@
 {
-  "target_name": "GROMACS-2026.0-CUDA",
+  "target_name": "GROMACS-2026.0-CPU",
   "tarball_url": "https://ftp.gromacs.org/gromacs/gromacs-2026.0.tar.gz"
 }
