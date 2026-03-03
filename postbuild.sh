@@ -28,9 +28,13 @@ echo ""
 # Display installation contents
 echo "Installation contents:"
 echo "  Binaries: $(ls $INSTALL_DIR/bin/ | wc -l) files"
-echo "  Libraries: $(ls $INSTALL_DIR/lib/ 2>/dev/null | wc -l) files"
-echo "  Headers: $(find $INSTALL_DIR/include -type f | wc -l) files"
-echo "  Share: $(find $INSTALL_DIR/share -type f | wc -l) files"
+if [ -d "$INSTALL_DIR/lib" ] && [ "$(ls -A $INSTALL_DIR/lib 2>/dev/null)" ]; then
+    echo "  Libraries: $(ls $INSTALL_DIR/lib/ | wc -l) files"
+else
+    echo "  Libraries: Static (bundled in binary)"
+fi
+echo "  Headers: $(find $INSTALL_DIR/include -type f 2>/dev/null | wc -l) files"
+echo "  Share: $(find $INSTALL_DIR/share -type f 2>/dev/null | wc -l) files"
 echo ""
 
 # Create README for the artifact
@@ -41,9 +45,9 @@ GROMACS 2026.0 - CUDA GPU Build
 Build Configuration:
   Version:        2026.0
   Build type:     Release
-  Libraries:      Static
+  Libraries:      Static (bundled in binary)
   SIMD:           AVX2_256
-  Threading:      Thread-MPI + MPI
+  Threading:      MPI
   GPU:            CUDA (80;86;89;90)
   Precision:      Single/Mixed
   Platform:       Ubuntu 24.04 AMD64
@@ -51,10 +55,22 @@ Build Configuration:
 
 Installation:
   tar -xjf built_artefact.tar.bz2
+  ./setup_gromacs.sh
+
+Runtime Requirements (Ubuntu 24.04):
+  sudo apt update
+  sudo apt install libgomp1 libopenmpi3t64
+
+  For GPU support:
+    - NVIDIA driver 535+ (CUDA 12.1+ compatible)
+    - NVIDIA GPU with Compute Capability 8.0+
 
 Usage:
   source bin/GMXRC
   gmx_mpi --version
+
+  Multi-GPU:
+    mpirun -np 4 gmx_mpi mdrun -deffnm simulation
 
 Supported GPUs:
   Consumer: RTX 30 series (3060-3090 Ti)
@@ -64,45 +80,123 @@ Supported GPUs:
               L40, L40S (Ada)
   Compute Capabilities: 8.0, 8.6, 8.9, 9.0
 
-Requirements:
-  - NVIDIA GPU with Compute Capability 8.0+
-  - CUDA 12.1+ compatible driver
-  - RTX 50 series NOT supported (requires CUDA 13.0+)
-
-Multi-GPU:
-  - MPI enabled for multi-GPU simulations
-  - Use mpirun/mpiexec for parallel execution
-  - GPU-aware MPI auto-detected at compile time
+  RTX 50 series NOT supported (requires CUDA 13.0+)
 
 Troubleshooting:
   If GPU-aware MPI fails to auto-detect:
     export GMX_FORCE_GPU_AWARE_MPI=1
-  (Rare case, most systems work automatically)
 
 For more information:
   https://manual.gromacs.org/current/
   https://www.gromacs.org/
 
 Contents:
-  bin/        - Executables (gmx, GMXRC, completion scripts)
-  lib/        - Static libraries and CMake config
+  bin/        - Executables (gmx_mpi, GMXRC, completion scripts)
   include/    - Header files for development
-  share/      - Force fields, templates, man pages, CMake config
+  share/      - Force fields, templates, man pages
 EOF
 
 # Create setup helper script
 cat > "$INSTALL_DIR/setup_gromacs.sh" << 'EOF'
 #!/bin/bash
-# GROMACS environment setup script
+# GROMACS environment setup script (relocatable)
 GMX_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$GMX_DIR/bin/GMXRC"
 export PATH="$GMX_DIR/bin:$PATH"
-export LD_LIBRARY_PATH="$GMX_DIR/lib:$LD_LIBRARY_PATH"
+export GMXBIN="$GMX_DIR/bin"
+export GMXDATA="$GMX_DIR/share/gromacs"
+export GROMACS_DIR="$GMX_DIR"
 echo "GROMACS environment set up"
 echo "GMX bin: $GMX_DIR/bin"
-echo "GMX version: $(gmx_mpi --version 2>&1 | head -1)"
+echo "GMX version: $($GMX_DIR/bin/gmx_mpi --version 2>&1 | head -1)"
 EOF
 chmod +x "$INSTALL_DIR/setup_gromacs.sh"
+
+# Replace GMXRC with relocatable versions
+echo "Creating relocatable GMXRC scripts..."
+
+# GMXRC - shell-agnostic wrapper that detects script location
+cat > "$INSTALL_DIR/bin/GMXRC" << 'GMXRC_EOF'
+#!/bin/sh
+# Relocatable GMXRC - detects installation directory automatically
+GMXRC_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$GMXRC_DIR/GMXRC.bash"
+GMXRC_EOF
+
+# GMXRC.bash - bash/zsh configuration with relocatable paths
+cat > "$INSTALL_DIR/bin/GMXRC.bash" << 'GMXRC_BASH_EOF'
+#!/bin/bash
+# Relocatable GROMACS environment setup for bash/zsh
+# Detects installation directory from script location
+
+GMXBIN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GMXPREFIX="$(dirname "$GMXBIN")"
+GMXLDLIB="$GMXPREFIX/lib"
+GMXMAN="$GMXPREFIX/share/man"
+GMXDATA="$GMXPREFIX/share/gromacs"
+GROMACS_DIR="$GMXPREFIX"
+
+# Remove old GROMACS paths from PATH if present
+if [ -n "$PATH" ]; then
+    PATH=$(echo "$PATH" | tr ':' '\n' | grep -v '/gromacs' | grep -v '/GMXBIN' | tr '\n' ':' | sed 's/:$//')
+fi
+
+# Remove old GROMACS paths from LD_LIBRARY_PATH if present
+if [ -n "$LD_LIBRARY_PATH" ]; then
+    LD_LIBRARY_PATH=$(echo "$LD_LIBRARY_PATH" | tr ':' '\n' | grep -v '/gromacs' | tr '\n' ':' | sed 's/:$//')
+fi
+
+# Remove old GROMACS paths from MANPATH if present
+if [ -n "$MANPATH" ]; then
+    MANPATH=$(echo "$MANPATH" | tr ':' '\n' | grep -v '/gromacs' | tr '\n' ':' | sed 's/:$//')
+fi
+
+# Add new paths
+export PATH="$GMXBIN:$PATH"
+if [ -d "$GMXLDLIB" ]; then
+    export LD_LIBRARY_PATH="$GMXLDLIB:$LD_LIBRARY_PATH"
+fi
+export MANPATH="$GMXMAN:$MANPATH"
+export GMXBIN GMXLDLIB GMXMAN GMXDATA GROMACS_DIR
+
+# Bash completion support
+if [ -n "$BASH_VERSION" ] && [ -f "$GMXBIN/gmx-completion.bash" ]; then
+    source "$GMXBIN/gmx-completion.bash"
+    for cfile in "$GMXBIN"/gmx-completion-*.bash; do
+        [ -f "$cfile" ] && source "$cfile"
+    done
+fi
+GMXRC_BASH_EOF
+
+# GMXRC.csh - csh/tcsh configuration with relocatable paths
+cat > "$INSTALL_DIR/bin/GMXRC.csh" << 'GMXRC_CSH_EOF'
+#!/bin/csh
+# Relocatable GROMACS environment setup for csh/tcsh
+set GMXRC_DIR = "`dirname $0`"
+set GMXBIN = "`cd $GMXRC_DIR && pwd`"
+set GMXPREFIX = "`dirname $GMXBIN`"
+setenv GMXBIN "$GMXBIN"
+setenv GMXLDLIB "$GMXPREFIX/lib"
+setenv GMXMAN "$GMXPREFIX/share/man"
+setenv GMXDATA "$GMXPREFIX/share/gromacs"
+setenv GROMACS_DIR "$GMXPREFIX"
+setenv PATH "${GMXBIN}:${PATH}"
+if ($?LD_LIBRARY_PATH) then
+    setenv LD_LIBRARY_PATH "${GMXLDLIB}:${LD_LIBRARY_PATH}"
+else
+    setenv LD_LIBRARY_PATH "${GMXLDLIB}"
+endif
+GMXRC_CSH_EOF
+
+# GMXRC.zsh - zsh configuration (delegates to bash version)
+cat > "$INSTALL_DIR/bin/GMXRC.zsh" << 'GMXRC_ZSH_EOF'
+#!/bin/zsh
+# Relocatable GROMACS environment setup for zsh
+GMXRC_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$GMXRC_DIR/GMXRC.bash"
+GMXRC_ZSH_EOF
+
+chmod +x "$INSTALL_DIR/bin/GMXRC" "$INSTALL_DIR/bin/GMXRC.bash" "$INSTALL_DIR/bin/GMXRC.csh" "$INSTALL_DIR/bin/GMXRC.zsh"
+echo "Relocatable GMXRC scripts created"
 
 # Create the artifact
 echo "Creating artifact tarball..."

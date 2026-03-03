@@ -349,7 +349,7 @@ jobs:
             - CUDA Toolkit: 12.6
             - SIMD: AVX2_256
             - MPI: Enabled (OpenMPI for multi-GPU)
-            - Threading: Thread-MPI + MPI
+            - Threading: MPI (OpenMPI)
             - Precision: Single/Mixed
 
             ## GPU Support
@@ -381,6 +381,19 @@ jobs:
             - Linux x86_64 (glibc 2.17+)
             - Minimum 4GB RAM per GPU (8GB+ recommended)
 
+            ## Runtime Dependencies (Ubuntu 24.04)
+            This build requires the following system packages:
+            ```bash
+            sudo apt update
+            sudo apt install libgomp1 libopenmpi3t64
+            ```
+
+            For GPU support:
+            - NVIDIA driver 535+ (CUDA 12.1+ compatible)
+
+            Note: Static libraries (libgromacs, FFTW) are bundled in the binary.
+            Only OpenMP (libgomp1) and OpenMPI (libopenmpi3t64) runtime libraries are required.
+
             ## Multi-GPU Support
             - MPI enabled for multi-GPU and multi-node simulations
             - GPU-aware MPI auto-detected at compile time (OpenMPI 4.1+)
@@ -394,7 +407,9 @@ jobs:
             ## Installation
             1. Download built_artefact.tar.bz2
             2. Extract: tar -xjf built_artefact.tar.bz2
-            3. Source environment: source bin/GMXRC
+            3. Setup environment (choose one):
+               - Quick setup: ./setup_gromacs.sh
+               - Or manually: source bin/GMXRC
             4. Verify: gmx_mpi --version
 
             Expected output should show:
