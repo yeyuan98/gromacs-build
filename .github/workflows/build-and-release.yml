@@ -395,7 +395,7 @@ jobs:
             1. Download built_artefact.tar.bz2
             2. Extract: tar -xjf built_artefact.tar.bz2
             3. Source environment: source bin/GMXRC
-            4. Verify: gmx --version
+            4. Verify: gmx_mpi --version
 
             Expected output should show:
             - GPU support: CUDA

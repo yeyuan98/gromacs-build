@@ -61,13 +61,15 @@ echo "Installation complete"
 echo ""
 
 # Verify installation
-if [ ! -f "$INSTALL_PREFIX/bin/gmx" ]; then
-    echo "::error::GROMACS binary not found at $INSTALL_PREFIX/bin/gmx"
+# When MPI is enabled, binary is named gmx_mpi instead of gmx
+GMX_BIN="gmx_mpi"
+if [ ! -f "$INSTALL_PREFIX/bin/$GMX_BIN" ]; then
+    echo "::error::GROMACS binary not found at $INSTALL_PREFIX/bin/$GMX_BIN"
     exit 1
 fi
 
 echo "Verifying installation:"
-ls -lh "$INSTALL_PREFIX/bin/gmx"
+ls -lh "$INSTALL_PREFIX/bin/$GMX_BIN"
 echo ""
 
 # Display build summary

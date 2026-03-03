@@ -16,8 +16,9 @@ if [ ! -d "$INSTALL_DIR" ]; then
 fi
 
 # Verify GROMACS binary exists
-if [ ! -f "$INSTALL_DIR/bin/gmx" ]; then
-    echo "::error::GROMACS binary not found at $INSTALL_DIR/bin/gmx"
+# When MPI is enabled, binary is named gmx_mpi instead of gmx
+if [ ! -f "$INSTALL_DIR/bin/gmx_mpi" ]; then
+    echo "::error::GROMACS binary not found at $INSTALL_DIR/bin/gmx_mpi"
     exit 1
 fi
 
@@ -53,7 +54,7 @@ Installation:
 
 Usage:
   source bin/GMXRC
-  gmx --version
+  gmx_mpi --version
 
 Supported GPUs:
   Consumer: RTX 30 series (3060-3090 Ti)
@@ -99,7 +100,7 @@ export PATH="$GMX_DIR/bin:$PATH"
 export LD_LIBRARY_PATH="$GMX_DIR/lib:$LD_LIBRARY_PATH"
 echo "GROMACS environment set up"
 echo "GMX bin: $GMX_DIR/bin"
-echo "GMX version: $(gmx --version 2>&1 | head -1)"
+echo "GMX version: $(gmx_mpi --version 2>&1 | head -1)"
 EOF
 chmod +x "$INSTALL_DIR/setup_gromacs.sh"
 
@@ -133,7 +134,7 @@ echo ""
 
 # Verify artifact integrity
 echo "Verifying artifact integrity..."
-if tar -tjf built_artefact.tar.bz2 | grep -q "bin/gmx"; then
+if tar -tjf built_artefact.tar.bz2 | grep -q "bin/gmx_mpi"; then
     echo "✓ GROMACS binary found in artifact"
 else
     echo "::error::GROMACS binary not found in artifact"
