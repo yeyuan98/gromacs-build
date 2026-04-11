@@ -16,8 +16,8 @@ if [ ! -d "$INSTALL_DIR" ]; then
 fi
 
 # Verify GROMACS binary exists
-if [ ! -f "$INSTALL_DIR/bin/gmx" ]; then
-    echo "::error::GROMACS binary not found at $INSTALL_DIR/bin/gmx"
+if [ ! -f "$INSTALL_DIR/bin/gmx_mpi" ]; then
+    echo "::error::GROMACS binary not found at $INSTALL_DIR/bin/gmx_mpi"
     exit 1
 fi
 
@@ -101,7 +101,7 @@ export GMXDATA="$GMX_DIR/share/gromacs"
 export GROMACS_DIR="$GMX_DIR"
 echo "GROMACS environment set up"
 echo "GMX bin: $GMX_DIR/bin"
-echo "GMX version: $($GMX_DIR/bin/gmx --version 2>&1 | head -1)"
+echo "GMX version: $($GMX_DIR/bin/gmx_mpi --version 2>&1 | head -1)"
 EOF
 chmod +x "$INSTALL_DIR/setup_gromacs.sh"
 
@@ -222,22 +222,22 @@ echo ""
 
 # Verify artifact integrity
 echo "Verifying artifact integrity..."
-if tar -tjf built_artefact.tar.bz2 | grep -q "bin/gmx"; then
-    echo "✓ GROMACS binary found in artifact"
+if tar -tjf built_artefact.tar.bz2 | grep -q "bin/gmx_mpi"; then
+    echo "::pass::GROMACS binary found in artifact"
 else
     echo "::error::GROMACS binary not found in artifact"
     exit 1
 fi
 
 if tar -tjf built_artefact.tar.bz2 | grep -q "bin/GMXRC"; then
-    echo "✓ GMXRC setup script found in artifact"
+    echo "::pass::GMXRC setup script found in artifact"
 else
     echo "::error::GMXRC not found in artifact"
     exit 1
 fi
 
 if tar -tjf built_artefact.tar.bz2 | grep -q "share/gromacs/top/"; then
-    echo "✓ Force field files found in artifact"
+    echo "::pass::Force field files found in artifact"
 else
     echo "::error::Force field files not found in artifact"
     exit 1
