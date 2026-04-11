@@ -29,7 +29,8 @@ if command -v apt-get &> /dev/null; then
         git \
         zlib1g-dev \
         wget \
-        pkg-config
+        pkg-config \
+        openmpi-bin openmpi-common libopenmpi-dev
 else
     echo "::error::This build script only supports apt-get (Ubuntu/Debian)"
     exit 1
