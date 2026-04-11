@@ -30,10 +30,12 @@ cmake "$SOURCE_DIR" \
     -DGMX_MPI=OFF \
     -DGMX_DOUBLE=OFF \
     -DGMX_SIMD=AVX2_256 \
-    -DBUILD_SHARED_LIBS=OFF \
+    -DGMX_BUILD_SHARED_EXE=OFF \
+    -DCMAKE_FIND_LIBRARY_SUFFIXES=".a" \
     -DGMXAPI=OFF \
     -DGMX_INSTALL_NBLIB_API=OFF \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+    -DCMAKE_CUDA_ARCHITECTURES="86;89;90;120" \
     -DREGRESSIONTEST_DOWNLOAD=OFF
 
 echo ""
@@ -72,12 +74,12 @@ echo ""
 # Display build summary
 echo "==================================="
 echo "GROMACS Build Summary:"
-echo "  Version: 2026.0"
+echo "  Version: 2026.1"
 echo "  Build type: Release"
 echo "  Libraries: Static"
 echo "  SIMD: AVX2_256"
-echo "  Threading: Thread-MPI"
-echo "  GPU: OFF"
+echo "  Threading: Thread-MPI + MPI"
+echo "  GPU: CUDA (86;89;90;120)"
 echo "  Precision: Single/Mixed"
 echo "  Install path: $INSTALL_PREFIX"
 echo "==================================="
