@@ -343,24 +343,25 @@ jobs:
             Build release for ${{ needs.prepare.outputs.target-name }}
 
             ## Build Configuration
-            - GROMACS Version: 2026.0
+            - GROMACS Version: 2026.1
             - Build Type: Release (static libraries)
             - Platform: Ubuntu 24.04 AMD64
             - SIMD: AVX2_256
-            - Threading: Thread-MPI (built-in)
-            - GPU: OFF
+            - Threading: MPI
+            - GPU: CUDA
             - Precision: Single/Mixed
 
             ## System Requirements
             - Linux x86_64 (glibc 2.17+)
             - CPU with AVX2 support
+            - NVIDIA GPU
             - Minimum 4GB RAM (8GB+ recommended)
 
             ## Runtime Dependencies (Ubuntu 24.04)
             This build requires the following system packages:
             ```bash
             sudo apt update
-            sudo apt install libgomp1
+            sudo apt install libgomp1 libopenmpi3t64
             ```
 
             Note: Static libraries (libgromacs, FFTW) are bundled in the binary.

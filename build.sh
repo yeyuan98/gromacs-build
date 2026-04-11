@@ -26,8 +26,8 @@ echo ""
 cmake "$SOURCE_DIR" \
     -DCMAKE_BUILD_TYPE=Release \
     -DGMX_BUILD_OWN_FFTW=ON \
-    -DGMX_GPU=OFF \
-    -DGMX_MPI=OFF \
+    -DGMX_GPU=CUDA \
+    -DGMX_MPI=ON \
     -DGMX_DOUBLE=OFF \
     -DGMX_SIMD=AVX2_256 \
     -DGMX_BUILD_SHARED_EXE=OFF \
