@@ -343,7 +343,7 @@ jobs:
             Build release for ${{ needs.prepare.outputs.target-name }}
 
             ## Build Configuration
-            - GROMACS Version: 2026.0
+            - GROMACS Version: 2026.1
             - Build Type: Release (static libraries)
             - Platform: Ubuntu 22.04 AMD64 (compatible with Ubuntu 22.04+)
             - SIMD: AVX2_256

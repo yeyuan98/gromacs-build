@@ -43,11 +43,11 @@ echo ""
 
 # Create README for the artifact
 cat > "$INSTALL_DIR/README.txt" << 'EOF'
-GROMACS 2026.0 - CPU Build
+GROMACS 2026.1 - CPU Build
 ==========================
 
 Build Configuration:
-  Version:        2026.0
+  Version:        2026.1
   Build type:     Release
   Libraries:      Static (bundled in binary)
   SIMD:           AVX2_256

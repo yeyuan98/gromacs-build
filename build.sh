@@ -2,7 +2,7 @@
 set -e
 
 echo "==================================="
-echo "BUILD: Building GROMACS 2026.0"
+echo "BUILD: Building GROMACS 2026.1"
 echo "==================================="
 
 # Get source directory (where CMakeLists.txt is located)
@@ -76,7 +76,7 @@ echo ""
 # Display build summary
 echo "==================================="
 echo "GROMACS Build Summary:"
-echo "  Version: 2026.0"
+echo "  Version: 2026.1"
 echo "  Build type: Release"
 echo "  Libraries: Static"
 echo "  SIMD: AVX2_256"
