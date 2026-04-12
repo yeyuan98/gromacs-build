@@ -26,11 +26,12 @@ echo ""
 cmake "$SOURCE_DIR" \
     -DCMAKE_BUILD_TYPE=Release \
     -DGMX_BUILD_OWN_FFTW=ON \
-    -DGMX_GPU=OFF \
-    -DGMX_MPI=OFF \
+    -DGMX_GPU=CUDA \
+    -DGMX_MPI=ON \
     -DGMX_DOUBLE=OFF \
     -DGMX_SIMD=AVX2_256 \
-    -DBUILD_SHARED_LIBS=OFF \
+    -DGMX_BUILD_SHARED_EXE=OFF \
+    -DCMAKE_FIND_LIBRARY_SUFFIXES=".a" \
     -DGMX_EXTERNAL_ZLIB=OFF \
     -DGMX_EXTERNAL_BLAS=OFF \
     -DGMX_EXTERNAL_LAPACK=OFF \
@@ -38,6 +39,7 @@ cmake "$SOURCE_DIR" \
     -DGMXAPI=OFF \
     -DGMX_INSTALL_NBLIB_API=OFF \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+    -DCMAKE_CUDA_ARCHITECTURES="86;89;90;120" \
     -DREGRESSIONTEST_DOWNLOAD=OFF
 
 echo ""
@@ -64,24 +66,25 @@ echo "Installation complete"
 echo ""
 
 # Verify installation
-if [ ! -f "$INSTALL_PREFIX/bin/gmx" ]; then
-    echo "::error::GROMACS binary not found at $INSTALL_PREFIX/bin/gmx"
+GMX_BIN="gmx_mpi"
+if [ ! -f "$INSTALL_PREFIX/bin/$GMX_BIN" ]; then
+    echo "::error::GROMACS binary not found at $INSTALL_PREFIX/bin/$GMX_BIN"
     exit 1
 fi
 
 echo "Verifying installation:"
-ls -lh "$INSTALL_PREFIX/bin/gmx"
+ls -lh "$INSTALL_PREFIX/bin/$GMX_BIN"
 echo ""
 
 # Display build summary
 echo "==================================="
 echo "GROMACS Build Summary:"
-echo "  Version: 2026.0"
+echo "  Version: 2026.1"
 echo "  Build type: Release"
 echo "  Libraries: Static"
 echo "  SIMD: AVX2_256"
-echo "  Threading: Thread-MPI"
-echo "  GPU: OFF"
+echo "  Threading: Thread-MPI + MPI"
+echo "  GPU: CUDA (86;89;90;120)"
 echo "  Precision: Single/Mixed"
 echo "  Install path: $INSTALL_PREFIX"
 echo "==================================="
