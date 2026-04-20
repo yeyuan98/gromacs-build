@@ -28,7 +28,7 @@ Configuration:
   - Library: [Static, Shared]
 ```
 
-Note: with GROMACS quarterly releases, this repo will be updated with selected builds on Ubuntu 24.04.
+Note: with GROMACS quarterly releases, this repo will be updated with selected builds on Ubuntu 22.04 for maximum compatibility.
 
 ## Resources
 

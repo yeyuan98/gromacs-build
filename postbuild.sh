@@ -24,6 +24,11 @@ fi
 echo "GROMACS installation found at: $INSTALL_DIR"
 echo ""
 
+# Check dynamic dependencies (informational only)
+echo "Dynamic library dependencies:"
+ldd "$INSTALL_DIR/bin/gmx" || true
+echo ""
+
 # Display installation contents
 echo "Installation contents:"
 echo "  Binaries: $(ls $INSTALL_DIR/bin/ | wc -l) files"
@@ -45,7 +50,7 @@ Build Configuration:
   Threading:      Thread-MPI
   GPU:            OFF
   Precision:      Single/Mixed
-  Platform:       Ubuntu 24.04 AMD64
+  Platform:       Ubuntu 22.04 AMD64 (compatible with Ubuntu 22.04+)
 
 Installation:
   tar -xjf built_artefact.tar.bz2
@@ -72,7 +77,6 @@ cat > "$INSTALL_DIR/setup_gromacs.sh" << 'EOF'
 GMX_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$GMX_DIR/bin/GMXRC"
 export PATH="$GMX_DIR/bin:$PATH"
-export LD_LIBRARY_PATH="$GMX_DIR/lib:$LD_LIBRARY_PATH"
 echo "GROMACS environment set up"
 echo "GMX bin: $GMX_DIR/bin"
 echo "GMX version: $(gmx --version 2>&1 | head -1)"
