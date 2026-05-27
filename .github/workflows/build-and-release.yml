@@ -343,11 +343,11 @@ jobs:
             Build release for ${{ needs.prepare.outputs.target-name }}
 
             ## Build Configuration
-            - GROMACS Version: 2026.1
+            - GROMACS Version: 2026.2
             - Build Type: Release (static libraries)
             - Platform: Ubuntu 22.04 AMD64 (compatible with Ubuntu 22.04+)
-            - SIMD: AVX2_256
-            - Threading: MPI
+            - SIMD: AVX_512
+            - Threading: Thread-MPI
             - GPU: CUDA
             - Precision: Single/Mixed
 

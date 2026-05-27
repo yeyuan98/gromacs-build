@@ -62,7 +62,7 @@ echo "Installation complete"
 echo ""
 
 # Verify installation
-GMX_BIN="gmx_mpi"
+GMX_BIN="gmx"
 if [ ! -f "$INSTALL_PREFIX/bin/$GMX_BIN" ]; then
     echo "::error::GROMACS binary not found at $INSTALL_PREFIX/bin/$GMX_BIN"
     exit 1

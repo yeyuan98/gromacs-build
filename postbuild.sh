@@ -16,8 +16,8 @@ if [ ! -d "$INSTALL_DIR" ]; then
 fi
 
 # Verify GROMACS binary exists
-if [ ! -f "$INSTALL_DIR/bin/gmx_mpi" ]; then
-    echo "::error::GROMACS binary not found at $INSTALL_DIR/bin/gmx_mpi"
+if [ ! -f "$INSTALL_DIR/bin/gmx" ]; then
+    echo "::error::GROMACS binary not found at $INSTALL_DIR/bin/gmx"
     exit 1
 fi
 
