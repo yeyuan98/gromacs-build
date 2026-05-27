@@ -1,10 +1,12 @@
 #!/bin/bash
 set -e
 
-source "$(dirname "$0")/build-config.sh"
+VARIANT_INDEX="${1:?Usage: build.sh <variant-index>}"
+
+source "$(dirname "$0")/build-config-${VARIANT_INDEX}.sh"
 
 echo "==================================="
-echo "BUILD: Building GROMACS $GMX_VERSION"
+echo "BUILD: Building GROMACS $GMX_VERSION (variant $VARIANT_INDEX)"
 echo "==================================="
 
 echo "Source directory: $SOURCE_DIR"
@@ -51,14 +53,14 @@ ls -lh "$INSTALL_DIR/bin/$GMX_BIN"
 echo ""
 
 echo "==================================="
-echo "GROMACS Build Summary:"
+echo "GROMACS Build Summary (variant $VARIANT_INDEX):"
 echo "  Version: $GMX_VERSION"
 echo "  Build type: $BUILD_TYPE"
-echo "  Libraries: $LIB_TYPE"
 echo "  SIMD: $GMX_SIMD"
+echo "  Precision: $PRECISION"
 echo "  Threading: $THREADING"
 echo "  GPU: $GPU_LABEL"
-echo "  Precision: $PRECISION"
+echo "  Libraries: $LIB_TYPE"
 echo "  Install path: $INSTALL_DIR"
 echo "==================================="
 echo ""

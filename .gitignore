@@ -3,8 +3,13 @@ hello-world-src
 
 # Build artifacts
 built_artefact.tar.bz2
-build/
-artifact/
+build_settings_snapshot.tar.bz2
+*.tar.bz2
+build-*/
+install-*/
+build-config-*.sh
+build-config.sh
+snapshot/
 
 # OS specific files
 .DS_Store

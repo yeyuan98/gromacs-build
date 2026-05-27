@@ -1,19 +1,19 @@
 #!/bin/bash
 set -e
 
-source "$(dirname "$0")/build-config.sh"
+VARIANT_INDEX="${1:?Usage: postbuild.sh <variant-index>}"
+
+source "$(dirname "$0")/build-config-${VARIANT_INDEX}.sh"
 
 echo "==================================="
-echo "POSTBUILD: Creating GROMACS artifact"
+echo "POSTBUILD: Creating GROMACS artifact (variant $VARIANT_INDEX)"
 echo "==================================="
 
-# Verify installation directory exists
 if [ ! -d "$INSTALL_DIR" ]; then
     echo "::error::Installation directory not found: $INSTALL_DIR"
     exit 1
 fi
 
-# Verify GROMACS binary exists
 if [ ! -f "$INSTALL_DIR/bin/$GMX_BIN" ]; then
     echo "::error::GROMACS binary not found at $INSTALL_DIR/bin/$GMX_BIN"
     exit 1
@@ -22,12 +22,10 @@ fi
 echo "GROMACS installation found at: $INSTALL_DIR"
 echo ""
 
-# Check dynamic dependencies (informational only)
 echo "Dynamic library dependencies:"
 ldd "$INSTALL_DIR/bin/$GMX_BIN" || true
 echo ""
 
-# Display installation contents
 echo "Installation contents:"
 echo "  Binaries: $(ls "$INSTALL_DIR/bin/" | wc -l) files"
 if [ -d "$INSTALL_DIR/lib" ] && [ "$(ls -A "$INSTALL_DIR/lib" 2>/dev/null)" ]; then
@@ -52,11 +50,10 @@ $_TITLE
 Build Configuration:
   Version:        $GMX_VERSION
   Build type:     $BUILD_TYPE
-  Libraries:      $LIB_TYPE (bundled in binary)
   SIMD:           $GMX_SIMD
+  Precision:      $PRECISION
   Threading:      $THREADING
   GPU:            $GPU_LABEL
-  Precision:      $PRECISION
   Platform:       $PLATFORM
 EOF
 
@@ -69,7 +66,7 @@ fi
 cat >> "$INSTALL_DIR/README.txt" << 'EOF'
 
 Installation:
-  tar -xjf built_artefact.tar.bz2
+  tar -xjf @@ARTIFACT_NAME@@
   ./setup_gromacs.sh
 
 Runtime Requirements (@@PLATFORM@@):
@@ -82,6 +79,7 @@ Usage:
 EOF
 
 sed -i \
+    -e "s|@@ARTIFACT_NAME@@|$ARTIFACT_NAME|g" \
     -e "s|@@PLATFORM@@|$PLATFORM|g" \
     -e "s|@@RUNTIME_DEPS@@|$RUNTIME_DEPS|g" \
     -e "s|@@GMX_BIN@@|$GMX_BIN|g" \
@@ -129,10 +127,8 @@ else
 EOF
 fi
 
-# Create setup helper script (quoted heredoc + sed)
 cat > "$INSTALL_DIR/setup_gromacs.sh" << 'EOF'
 #!/bin/bash
-# GROMACS environment setup script (relocatable)
 GMX_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PATH="$GMX_DIR/bin:$PATH"
 export GMXBIN="$GMX_DIR/bin"
@@ -145,21 +141,16 @@ EOF
 sed -i "s|@@GMX_BIN@@|$GMX_BIN|g" "$INSTALL_DIR/setup_gromacs.sh"
 chmod +x "$INSTALL_DIR/setup_gromacs.sh"
 
-# Replace GMXRC with relocatable versions
 echo "Creating relocatable GMXRC scripts..."
 
 cat > "$INSTALL_DIR/bin/GMXRC" << 'GMXRC_EOF'
 #!/bin/sh
-# Relocatable GMXRC - detects installation directory automatically
 GMXRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$GMXRC_DIR/GMXRC.bash"
 GMXRC_EOF
 
 cat > "$INSTALL_DIR/bin/GMXRC.bash" << 'GMXRC_BASH_EOF'
 #!/bin/bash
-# Relocatable GROMACS environment setup for bash/zsh
-# Detects installation directory from script location
-
 GMXBIN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GMXPREFIX="$(dirname "$GMXBIN")"
 GMXLDLIB="$GMXPREFIX/lib"
@@ -167,22 +158,18 @@ GMXMAN="$GMXPREFIX/share/man"
 GMXDATA="$GMXPREFIX/share/gromacs"
 GROMACS_DIR="$GMXPREFIX"
 
-# Remove old GROMACS paths from PATH if present
 if [ -n "$PATH" ]; then
     PATH=$(echo "$PATH" | tr ':' '\n' | grep -v '/gromacs' | grep -v '/GMXBIN' | tr '\n' ':' | sed 's/:$//')
 fi
 
-# Remove old GROMACS paths from LD_LIBRARY_PATH if present
 if [ -n "$LD_LIBRARY_PATH" ]; then
     LD_LIBRARY_PATH=$(echo "$LD_LIBRARY_PATH" | tr ':' '\n' | grep -v '/gromacs' | tr '\n' ':' | sed 's/:$//')
 fi
 
-# Remove old GROMACS paths from MANPATH if present
 if [ -n "$MANPATH" ]; then
     MANPATH=$(echo "$MANPATH" | tr ':' '\n' | grep -v '/gromacs' | tr '\n' ':' | sed 's/:$//')
 fi
 
-# Add new paths
 export PATH="$GMXBIN:$PATH"
 if [ -d "$GMXLDLIB" ]; then
     export LD_LIBRARY_PATH="$GMXLDLIB:$LD_LIBRARY_PATH"
@@ -190,7 +177,6 @@ fi
 export MANPATH="$GMXMAN:$MANPATH"
 export GMXBIN GMXLDLIB GMXMAN GMXDATA GROMACS_DIR
 
-# Bash completion support
 if [ -n "$BASH_VERSION" ] && [ -f "$GMXBIN/gmx-completion.bash" ]; then
     source "$GMXBIN/gmx-completion.bash"
     for cfile in "$GMXBIN"/gmx-completion-*.bash; do
@@ -201,7 +187,6 @@ GMXRC_BASH_EOF
 
 cat > "$INSTALL_DIR/bin/GMXRC.csh" << 'GMXRC_CSH_EOF'
 #!/bin/csh
-# Relocatable GROMACS environment setup for csh/tcsh
 set GMXRC_DIR = "`dirname $0`"
 set GMXBIN = "`cd $GMXRC_DIR && pwd`"
 set GMXPREFIX = "`dirname $GMXBIN`"
@@ -220,7 +205,6 @@ GMXRC_CSH_EOF
 
 cat > "$INSTALL_DIR/bin/GMXRC.zsh" << 'GMXRC_ZSH_EOF'
 #!/bin/zsh
-# Relocatable GROMACS environment setup for zsh
 GMXRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$GMXRC_DIR/GMXRC.bash"
 GMXRC_ZSH_EOF
@@ -228,14 +212,12 @@ GMXRC_ZSH_EOF
 chmod +x "$INSTALL_DIR/bin/GMXRC" "$INSTALL_DIR/bin/GMXRC.bash" "$INSTALL_DIR/bin/GMXRC.csh" "$INSTALL_DIR/bin/GMXRC.zsh"
 echo "Relocatable GMXRC scripts created"
 
-# Create the artifact
 echo "Creating artifact tarball..."
 WORKING_DIR=$(pwd)
 cd "$INSTALL_DIR"
 tar -cjf "$WORKING_DIR/$ARTIFACT_NAME" .
 cd "$WORKING_DIR"
 
-# Verify artifact was created
 if [ ! -f "$ARTIFACT_NAME" ]; then
     echo "::error::$ARTIFACT_NAME was not created"
     exit 1
@@ -244,17 +226,15 @@ fi
 ARTIFACT_SIZE_HR=$(du -h "$ARTIFACT_NAME" | cut -f1)
 
 echo ""
-echo "Postbuild complete"
+echo "Postbuild complete (variant $VARIANT_INDEX)"
 echo "Artifact created: $ARTIFACT_NAME ($ARTIFACT_SIZE_HR)"
 echo ""
 
-# Show artifact contents (first 20 files)
 echo "Artifact contents (first 20 files):"
 tar -tjf "$ARTIFACT_NAME" | head -20
 echo "..."
 echo ""
 
-# Verify artifact integrity
 echo "Verifying artifact integrity..."
 if tar -tjf "$ARTIFACT_NAME" | grep -qE "bin/${GMX_BIN}$"; then
     echo "::pass::GROMACS binary found in artifact"
@@ -279,6 +259,6 @@ fi
 
 echo ""
 echo "==================================="
-echo "Artifact verification complete"
+echo "Artifact verification complete (variant $VARIANT_INDEX)"
 echo "==================================="
 echo ""

@@ -1,14 +1,6 @@
 name: Build and Release
 
 on:
-  push:
-    branches: [cuda]
-    paths:
-      - '.github/workflows/**'
-      - 'target-cmake.json'
-      - 'prebuild.sh'
-      - 'build.sh'
-      - 'postbuild.sh'
   workflow_dispatch:
 
 permissions:
@@ -19,385 +11,280 @@ jobs:
   prepare:
     runs-on: ubuntu-latest
     outputs:
-      expected-runner: ${{ steps.read-config.outputs.runner }}
-      target-name: ${{ steps.read-config.outputs.target-name }}
       tarball-url: ${{ steps.read-config.outputs.tarball-url }}
-    
+      variant-count: ${{ steps.read-config.outputs.variant-count }}
+      variant-matrix: ${{ steps.read-config.outputs.variant-matrix }}
+      gromacs-version: ${{ steps.read-config.outputs.gromacs-version }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
-      
-      - name: Read configuration files
+
+      - name: Read configuration
         id: read-config
         run: |
-          RUNNER=$(jq -r '.runner' target-cmake.json | tr -d '[:space:]')
-          TARGET_NAME=$(jq -r '.target_name' target-cmake.json)
           TARBALL_URL=$(jq -r '.tarball_url' target-cmake.json)
-          
-          echo "runner=$RUNNER" >> $GITHUB_OUTPUT
-          echo "target-name=$TARGET_NAME" >> $GITHUB_OUTPUT
+          GMX_VERSION=$(jq -r '.gromacs_version' target-cmake.json)
+          VARIANT_COUNT=$(jq '.variants | length' target-cmake.json)
+          VARIANT_MATRIX=$(jq -c '.variants | to_entries | map({index: .key, simd: .value.GMX_SIMD, double: .value.GMX_DOUBLE})' target-cmake.json)
+
           echo "tarball-url=$TARBALL_URL" >> $GITHUB_OUTPUT
-          
-          echo "::notice::Expected runner: $RUNNER"
-          echo "::notice::Target name: $TARGET_NAME"
-          echo "::notice::Tarball URL: $TARBALL_URL"
+          echo "variant-count=$VARIANT_COUNT" >> $GITHUB_OUTPUT
+          echo "variant-matrix=$VARIANT_MATRIX" >> $GITHUB_OUTPUT
+          echo "gromacs-version=$GMX_VERSION" >> $GITHUB_OUTPUT
+
+          echo "::notice::GROMACS $GMX_VERSION, $VARIANT_COUNT variants"
+          echo "::notice::$VARIANT_MATRIX"
 
   build:
     needs: prepare
-    runs-on: ${{ matrix.runner }}
-    
+    runs-on: ubuntu-22.04
+
     strategy:
       matrix:
-        runner: [ubuntu-24.04, ubuntu-22.04, macos-26, macos-26-intel, windows-2025]
+        variant: ${{ fromJson(needs.prepare.outputs.variant-matrix) }}
       fail-fast: false
-    
+
     steps:
-      - name: Check runner match
-        id: runner-check
-        if: matrix.runner == needs.prepare.outputs.expected-runner
-        run: echo "match=true" >> $GITHUB_OUTPUT
-      
-      - name: Early exit - runner mismatch
-        if: matrix.runner != needs.prepare.outputs.expected-runner
-        run: |
-          echo "Skipping ${{ matrix.runner }} - expected ${{ needs.prepare.outputs.expected-runner }}"
-          exit 0
-      
       - name: Checkout repository
-        if: steps.runner-check.outputs.match == 'true'
         uses: actions/checkout@v6
-      
+
       - name: Download tarball
-        if: steps.runner-check.outputs.match == 'true'
         id: download
         run: |
           TARBALL_URL="${{ needs.prepare.outputs.tarball-url }}"
-          
-          # Extract filename from URL
           FILENAME=$(basename "$TARBALL_URL" | cut -d'?' -f1)
           ARCHIVE_PATH="${{ runner.temp }}/$FILENAME"
-          
+
           echo "Downloading from: $TARBALL_URL"
-          echo "Saving to: $ARCHIVE_PATH"
-          
-          if command -v curl &> /dev/null; then
-            curl -L -o "$ARCHIVE_PATH" "$TARBALL_URL"
-          elif command -v wget &> /dev/null; then
-            wget -O "$ARCHIVE_PATH" "$TARBALL_URL"
-          else
-            echo "Error: Neither curl nor wget available"
-            exit 1
-          fi
-          
+          curl -L -o "$ARCHIVE_PATH" "$TARBALL_URL"
+
           echo "archive-path=$ARCHIVE_PATH" >> $GITHUB_OUTPUT
           echo "Download complete: $(ls -lh "$ARCHIVE_PATH")"
         shell: bash
-      
+
       - name: Extract tarball
-        if: steps.runner-check.outputs.match == 'true'
         id: extract
         run: |
           ARCHIVE_PATH="${{ steps.download.outputs.archive-path }}"
           EXTRACT_DIR="${{ runner.temp }}/extracted"
-          
+
           mkdir -p "$EXTRACT_DIR"
-          
-          echo "Extracting archive: $ARCHIVE_PATH"
-          
-          # Detect archive type by extension or file content
-          ARCHIVE_TYPE=""
-          
-          if [[ "$ARCHIVE_PATH" == *.zip ]]; then
-            ARCHIVE_TYPE="zip"
-          elif [[ "$ARCHIVE_PATH" == *.tar.gz ]] || [[ "$ARCHIVE_PATH" == *.tgz ]]; then
-            ARCHIVE_TYPE="tar.gz"
-          elif [[ "$ARCHIVE_PATH" == *.tar.bz2 ]] || [[ "$ARCHIVE_PATH" == *.tbz2 ]]; then
-            ARCHIVE_TYPE="tar.bz2"
-          elif [[ "$ARCHIVE_PATH" == *.tar ]]; then
-            ARCHIVE_TYPE="tar"
-          else
-            # Fallback: detect using file command
-            FILE_TYPE=$(file -b "$ARCHIVE_PATH")
-            echo "Detected file type: $FILE_TYPE"
-            
-            if echo "$FILE_TYPE" | grep -qi "zip"; then
-              ARCHIVE_TYPE="zip"
-            elif echo "$FILE_TYPE" | grep -qi "gzip"; then
-              ARCHIVE_TYPE="tar.gz"
-            elif echo "$FILE_TYPE" | grep -qi "bzip2"; then
-              ARCHIVE_TYPE="tar.bz2"
-            elif echo "$FILE_TYPE" | grep -qi "tar archive"; then
-              ARCHIVE_TYPE="tar"
-            fi
-          fi
-          
-          echo "Archive type: $ARCHIVE_TYPE"
-          
-          # Extract based on detected type
-          case "$ARCHIVE_TYPE" in
-            zip)
-              echo "Extracting ZIP archive..."
-              unzip -q "$ARCHIVE_PATH" -d "$EXTRACT_DIR"
-              ;;
-            tar.gz)
-              echo "Extracting tar.gz archive..."
-              tar -xzf "$ARCHIVE_PATH" -C "$EXTRACT_DIR"
-              ;;
-            tar.bz2)
-              echo "Extracting tar.bz2 archive..."
-              tar -xjf "$ARCHIVE_PATH" -C "$EXTRACT_DIR"
-              ;;
-            tar)
-              echo "Extracting tar archive..."
-              tar -xf "$ARCHIVE_PATH" -C "$EXTRACT_DIR"
-              ;;
-            *)
-              echo "Error: Unsupported or undetectable archive format"
-              echo "File type: $(file -b "$ARCHIVE_PATH")"
-              echo "Supported formats: .zip, .tar.gz, .tgz, .tar.bz2, .tbz2, .tar"
-              exit 1
-              ;;
-          esac
-          
+          tar -xzf "$ARCHIVE_PATH" -C "$EXTRACT_DIR"
+
           echo "extract-dir=$EXTRACT_DIR" >> $GITHUB_OUTPUT
-          echo "Extraction complete"
         shell: bash
-      
+
       - name: Find CMakeLists.txt directory
-        if: steps.runner-check.outputs.match == 'true'
         id: find-cmake
         run: |
           EXTRACT_DIR="${{ steps.extract.outputs.extract-dir }}"
-          
-          echo "Searching for CMakeLists.txt in: $EXTRACT_DIR"
-          
-          # First, check for CMakeLists.txt in the root of EXTRACT_DIR
+
           if [ -f "$EXTRACT_DIR/CMakeLists.txt" ]; then
             WORK_DIR="$EXTRACT_DIR"
-            echo "Found top-level CMakeLists.txt in: $WORK_DIR"
           else
-            # If not in root, search for wrapper directory (single subdirectory)
             SUBDIR_COUNT=$(find "$EXTRACT_DIR" -mindepth 1 -maxdepth 1 -type d | wc -l)
-            
             if [ "$SUBDIR_COUNT" -eq 1 ]; then
-              # Single subdirectory - likely a wrapper directory
               WRAPPER_DIR=$(find "$EXTRACT_DIR" -mindepth 1 -maxdepth 1 -type d)
-              
               if [ -f "$WRAPPER_DIR/CMakeLists.txt" ]; then
                 WORK_DIR="$WRAPPER_DIR"
-                echo "Found CMakeLists.txt in wrapper directory: $WORK_DIR"
               else
-                # Search recursively as fallback
                 WORK_DIR=$(find "$WRAPPER_DIR" -type f -name "CMakeLists.txt" -printf '%h\n' -quit | head -n1)
-                echo "Found CMakeLists.txt in subdirectory: $WORK_DIR"
               fi
             else
-              # Multiple subdirectories - search recursively
               WORK_DIR=$(find "$EXTRACT_DIR" -type f -name "CMakeLists.txt" -printf '%h\n' -quit | head -n1)
-              echo "Found CMakeLists.txt in: $WORK_DIR"
             fi
           fi
-          
+
           if [ -z "$WORK_DIR" ]; then
             echo "::error::CMakeLists.txt not found in extracted tarball"
             exit 1
           fi
-          
-          # Verify this is a proper GROMACS CMakeLists.txt (check for project() command)
+
           if ! grep -q "project" "$WORK_DIR/CMakeLists.txt"; then
-            echo "::warning::CMakeLists.txt found but doesn't appear to be a main project file"
-            echo "Contents of $WORK_DIR/CMakeLists.txt:"
-            head -10 "$WORK_DIR/CMakeLists.txt"
-            
-            # Try to find a better CMakeLists.txt
-            echo "Searching for main CMakeLists.txt..."
             for cmakefile in $(find "$EXTRACT_DIR" -name "CMakeLists.txt" -type f); do
               if grep -q "project" "$cmakefile" 2>/dev/null; then
                 WORK_DIR=$(dirname "$cmakefile")
-                echo "Found main CMakeLists.txt in: $WORK_DIR"
                 break
               fi
             done
           fi
-          
+
           echo "work-dir=$WORK_DIR" >> $GITHUB_OUTPUT
         shell: bash
-      
+
       - name: Copy build scripts
-        if: steps.runner-check.outputs.match == 'true'
         run: |
           WORK_DIR="${{ steps.find-cmake.outputs.work-dir }}"
-          
-          echo "Copying build scripts to: $WORK_DIR"
-          
           cp target-cmake.json "$WORK_DIR/"
           cp prebuild.sh "$WORK_DIR/"
           cp build.sh "$WORK_DIR/"
           cp postbuild.sh "$WORK_DIR/"
-          
+          cp snapshot.sh "$WORK_DIR/"
           chmod +x "$WORK_DIR"/*.sh
-          
-          echo "Scripts copied and made executable"
         shell: bash
-      
+
       - name: Execute prebuild.sh
-        if: steps.runner-check.outputs.match == 'true'
         working-directory: ${{ steps.find-cmake.outputs.work-dir }}
-        run: |
-          echo "Executing prebuild.sh..."
-          ./prebuild.sh
+        run: ./prebuild.sh ${{ matrix.variant.index }}
         shell: bash
-      
+
       - name: Execute build.sh
-        if: steps.runner-check.outputs.match == 'true'
         working-directory: ${{ steps.find-cmake.outputs.work-dir }}
-        run: |
-          echo "Executing build.sh..."
-          ./build.sh
+        run: ./build.sh ${{ matrix.variant.index }}
         shell: bash
-      
+
       - name: Execute postbuild.sh
-        if: steps.runner-check.outputs.match == 'true'
         working-directory: ${{ steps.find-cmake.outputs.work-dir }}
-        run: |
-          echo "Executing postbuild.sh..."
-          ./postbuild.sh
+        run: ./postbuild.sh ${{ matrix.variant.index }}
         shell: bash
-      
-      - name: Verify build artifact
-        if: steps.runner-check.outputs.match == 'true'
-        id: verify
+
+      - name: Prepare artifact for upload
         run: |
           WORK_DIR="${{ steps.find-cmake.outputs.work-dir }}"
-          ARTIFACT="$WORK_DIR/built_artefact.tar.bz2"
-          
-          if [ ! -f "$ARTIFACT" ]; then
-            echo "::error::built_artefact.tar.bz2 not found in $WORK_DIR"
-            exit 1
-          fi
-          
-          ARTIFACT_SIZE=$(stat -c%s "$ARTIFACT" 2>/dev/null || stat -f%z "$ARTIFACT" 2>/dev/null)
-          echo "::notice::Build artifact created: $ARTIFACT_SIZE bytes"
-          
-          echo "artifact-path=$ARTIFACT" >> $GITHUB_OUTPUT
+          ARTIFACT_NAME="${{ matrix.variant.simd }}-$( [ '${{ matrix.variant.double }}' = 'ON' ] && echo double || echo float ).tar.bz2"
+          CONFIG_NAME="build-config-${{ matrix.variant.index }}.sh"
+
+          cp "$WORK_DIR/$ARTIFACT_NAME" .
+          cp "$WORK_DIR/$CONFIG_NAME" .
+          cp "$WORK_DIR/target-cmake.json" .
+
+          echo "artifact-name=$ARTIFACT_NAME" >> $GITHUB_ENV
+          echo "config-name=$CONFIG_NAME" >> $GITHUB_ENV
+
+          ls -lh "$ARTIFACT_NAME" "$CONFIG_NAME" target-cmake.json
         shell: bash
-      
-      - name: Prepare artifacts for upload
-        if: steps.runner-check.outputs.match == 'true'
-        run: |
-          WORK_DIR="${{ steps.find-cmake.outputs.work-dir }}"
-          
-          echo "Copying artifacts to workspace..."
-          cp "$WORK_DIR/built_artefact.tar.bz2" .
-          cp "$WORK_DIR/build-config.sh" .
-          
-          echo "Artifacts ready for upload:"
-          ls -lh built_artefact.tar.bz2 build-config.sh target-cmake.json *.sh
-        shell: bash
-      
-      - name: Upload build artifacts
-        if: steps.runner-check.outputs.match == 'true'
+
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: build-artifacts
+          name: build-variant-${{ matrix.variant.index }}
           path: |
-            built_artefact.tar.bz2
-            build-config.sh
+            ${{ env.artifact-name }}
+            ${{ env.config-name }}
             target-cmake.json
-            prebuild.sh
-            build.sh
-            postbuild.sh
-          retention-days: 90
+          retention-days: 1
           if-no-files-found: error
 
   release:
     needs: [prepare, build]
     runs-on: ubuntu-latest
-    
+
     steps:
-      - name: Download artifacts
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: build-artifacts
           path: ./artifacts
-      
+          merge-multiple: false
+
+      - name: Collect artifacts and create snapshot
+        id: collect
+        run: |
+          VARIANT_COUNT=${{ needs.prepare.outputs.variant-count }}
+          GMX_VERSION=${{ needs.prepare.outputs.gromacs-version }}
+
+          RELEASE_DIR="release"
+          mkdir -p "$RELEASE_DIR"
+
+          for i in $(seq 0 $((VARIANT_COUNT - 1))); do
+            VARIANT_DIR="artifacts/build-variant-${i}"
+
+            if [ ! -d "$VARIANT_DIR" ]; then
+              echo "::error::Artifact directory missing: $VARIANT_DIR"
+              exit 1
+            fi
+
+            cp "$VARIANT_DIR"/*.tar.bz2 "$RELEASE_DIR/" 2>/dev/null || true
+            cp "$VARIANT_DIR"/build-config-*.sh "$RELEASE_DIR/" 2>/dev/null || true
+            cp "$VARIANT_DIR"/target-cmake.json "$RELEASE_DIR/" 2>/dev/null || true
+          done
+
+          cd "$RELEASE_DIR"
+          if [ ! -f target-cmake.json ]; then
+            echo "::error::target-cmake.json not found in collected artifacts"
+            exit 1
+          fi
+
+          CONFIG_FILES="target-cmake.json"
+          for f in build-config-*.sh; do
+            [ -f "$f" ] && CONFIG_FILES="$CONFIG_FILES $f"
+          done
+
+          tar -cjf build_settings_snapshot.tar.bz2 $CONFIG_FILES
+          echo "Snapshot contents:"
+          tar -tjf build_settings_snapshot.tar.bz2
+
+          echo ""
+          echo "Release files:"
+          ls -lh *.tar.bz2
+          echo ""
+
+          echo "gmx-version=$GMX_VERSION" >> $GITHUB_OUTPUT
+        shell: bash
+
       - name: Generate release tag
         id: tag
         run: |
-          TARGET_NAME="${{ needs.prepare.outputs.target-name }}"
+          GMX_VERSION=${{ needs.prepare.outputs.gromacs-version }}
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-          TAG="${TARGET_NAME}_T${TIMESTAMP}"
-          
+          TAG="GROMACS-${GMX_VERSION}_T${TIMESTAMP}"
+
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "::notice::Release tag: $TAG"
-      
+
       - name: Generate release body
         id: release-body
         run: |
-          source artifacts/build-config.sh
+          GMX_VERSION="${{ needs.prepare.outputs.gromacs-version }}"
+          VARIANT_COUNT="${{ needs.prepare.outputs.variant-count }}"
+          RUNTIME_DEPS=$(jq -r '.runtime_deps | join(" ")' release/target-cmake.json)
 
           cat > release_body.md << BODY_EOF
-          Build release for $TARGET_NAME
+          GROMACS ${GMX_VERSION} Linux Builds (Ubuntu 22.04 builder)
 
-          ## Build Configuration
-          - GROMACS Version: $GMX_VERSION
-          - Build Type: $BUILD_TYPE ($LIB_TYPE libraries)
-          - Platform: $PLATFORM (compatible with Ubuntu 22.04+)
-          - SIMD: $GMX_SIMD
-          - Threading: $THREADING
-          - GPU: $GPU_LABEL
-          - Precision: $PRECISION
+          ## Variants
 
-          ## System Requirements
-          - Linux x86_64 (glibc 2.17+)
-          - CPU with $GMX_SIMD support
-          - NVIDIA GPU (for CUDA builds)
-          - Minimum 4GB RAM (8GB+ recommended)
+          | File | SIMD | Precision | GPU |
+          |------|------|-----------|-----|
+          | AVX2_256-float.tar.bz2 | AVX2\_256 | Single/Mixed | CUDA |
+          | AVX2_256-double.tar.bz2 | AVX2\_256 | Double | CPU only |
+          | AVX_512-float.tar.bz2 | AVX\_512 | Single/Mixed | CUDA |
+          | AVX_512-double.tar.bz2 | AVX\_512 | Double | CPU only |
 
-          ## Runtime Dependencies ($PLATFORM)
-          This build requires the following system packages:
+          ## Runtime Dependencies
           \`\`\`bash
-          sudo apt update && sudo apt install $RUNTIME_DEPS
+          sudo apt update && sudo apt install ${RUNTIME_DEPS}
           \`\`\`
 
-          Note: $LIB_TYPE libraries (libgromacs, FFTW) are bundled in the binary.
-
           ## Installation
-          1. Download \`built_artefact.tar.bz2\`
-          2. Extract: \`tar -xjf built_artefact.tar.bz2\`
-          3. Setup environment (choose one):
-             - Quick setup: \`./setup_gromacs.sh\`
-             - Or manually: \`source bin/GMXRC\`
-          4. Verify: \`$GMX_BIN --version\`
+          1. Download the variant matching your CPU and precision needs
+          2. Extract: \`tar -xjf <variant>.tar.bz2\`
+          3. Setup: \`./setup_gromacs.sh\` or \`source bin/GMXRC\`
+          4. Verify: \`gmx --version\`
 
-          ## Artifacts
-          - \`built_artefact.tar.bz2\` - GROMACS installation package
-          - \`build-config.sh\` - Generated build configuration
-          - \`target-cmake.json\` - Build target configuration
-          - \`prebuild.sh\` / \`build.sh\` / \`postbuild.sh\` - Build scripts
+          ## CUDA Builds (float variants)
+          NVIDIA GPU with compute capability 8.6+ required:
+          RTX 30/40/50 series, A100, H100, L40, etc.
 
-          ## Runner Information
-          - Runner: ${{ needs.prepare.outputs.expected-runner }}
-          - Build Time: ${{ github.event.head_commit.timestamp }}
-
-          ## Documentation
-          - GROMACS Manual: https://manual.gromacs.org/current/
-          - Installation Guide: https://manual.gromacs.org/current/install-guide/index.html
+          ## Build Settings
+          \`build_settings_snapshot.tar.bz2\` contains the source configuration and per-variant build configs.
           BODY_EOF
-      
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
-          name: ${{ needs.prepare.outputs.target-name }} Build
+          name: GROMACS ${{ needs.prepare.outputs.gromacs-version }} Linux Builds
           body_path: release_body.md
           files: |
-            artifacts/built_artefact.tar.bz2
-            artifacts/build-config.sh
-            artifacts/target-cmake.json
-            artifacts/prebuild.sh
-            artifacts/build.sh
-            artifacts/postbuild.sh
+            release/AVX2_256-float.tar.bz2
+            release/AVX2_256-double.tar.bz2
+            release/AVX_512-float.tar.bz2
+            release/AVX_512-double.tar.bz2
+            release/build_settings_snapshot.tar.bz2
           draft: false
           prerelease: false
         env:

@@ -1,11 +1,12 @@
 #!/bin/bash
 set -e
 
+VARIANT_INDEX="${1:?Usage: prebuild.sh <variant-index>}"
+
 echo "==================================="
-echo "PREBUILD: Setting up GROMACS build environment"
+echo "PREBUILD: Setting up GROMACS build environment (variant $VARIANT_INDEX)"
 echo "==================================="
 
-# Detect OS
 if [ -f /etc/os-release ]; then
     . /etc/os-release
     echo "Detected OS: $PRETTY_NAME"
@@ -18,7 +19,6 @@ echo "  Memory: $(free -h | grep Mem | awk '{print $2}')"
 echo "  Disk space: $(df -h . | tail -1 | awk '{print $4}') available"
 echo ""
 
-# --- Phase 1: Validate prerequisites ---
 CONFIG_FILE="target-cmake.json"
 
 if [ ! -f "$CONFIG_FILE" ]; then
@@ -26,7 +26,6 @@ if [ ! -f "$CONFIG_FILE" ]; then
     exit 1
 fi
 
-# --- Phase 2: Install jq if needed ---
 if ! command -v jq &>/dev/null; then
     if command -v apt-get &>/dev/null; then
         sudo apt-get update -qq
@@ -37,10 +36,9 @@ if ! command -v jq &>/dev/null; then
     fi
 fi
 
-# --- Phase 3: Validate JSON schema ---
 echo "Validating $CONFIG_FILE..."
 
-REQUIRED_FIELDS=("target_name" "tarball_url" "gromacs_version" "runner" "platform" "cmake" "runtime_deps")
+REQUIRED_FIELDS=("gromacs_version" "tarball_url" "runner" "platform" "cmake_base" "runtime_deps" "variants")
 for field in "${REQUIRED_FIELDS[@]}"; do
     val=$(jq -r ".$field" "$CONFIG_FILE")
     if [ -z "$val" ] || [ "$val" = "null" ]; then
@@ -49,17 +47,17 @@ for field in "${REQUIRED_FIELDS[@]}"; do
     fi
 done
 
-CMAKE_REQUIRED=("CMAKE_BUILD_TYPE" "GMX_BUILD_OWN_FFTW" "GMX_GPU" "GMX_MPI" "GMX_DOUBLE" "GMX_SIMD")
-for field in "${CMAKE_REQUIRED[@]}"; do
-    val=$(jq -r ".cmake.$field" "$CONFIG_FILE")
-    if [ -z "$val" ] || [ "$val" = "null" ]; then
-        echo "::error::Missing required cmake field in $CONFIG_FILE: $field"
-        exit 1
-    fi
-done
+VARIANT_COUNT=$(jq '.variants | length' "$CONFIG_FILE")
+if [ "$VARIANT_INDEX" -ge "$VARIANT_COUNT" ] || [ "$VARIANT_INDEX" -lt 0 ]; then
+    echo "::error::Variant index $VARIANT_INDEX out of range (0-$((VARIANT_COUNT-1)))"
+    exit 1
+fi
 
-GMX_GPU_VAL=$(jq -r '.cmake.GMX_GPU' "$CONFIG_FILE")
-if [ "$GMX_GPU_VAL" = "CUDA" ]; then
+GMX_GPU_VARIANT=$(jq -r ".variants[$VARIANT_INDEX].GMX_GPU // empty" "$CONFIG_FILE")
+GMX_GPU_BASE=$(jq -r '.cmake_base.GMX_GPU' "$CONFIG_FILE")
+GMX_GPU_EFFECTIVE="${GMX_GPU_VARIANT:-$GMX_GPU_BASE}"
+
+if [ "$GMX_GPU_EFFECTIVE" = "CUDA" ]; then
     CUDA_FIELDS=("cuda_version" "cuda_repo_distro" "cuda_keyring_version")
     for field in "${CUDA_FIELDS[@]}"; do
         val=$(jq -r ".$field" "$CONFIG_FILE")
@@ -68,66 +66,67 @@ if [ "$GMX_GPU_VAL" = "CUDA" ]; then
             exit 1
         fi
     done
-    val=$(jq -r '.cmake.CMAKE_CUDA_ARCHITECTURES' "$CONFIG_FILE")
+    val=$(jq -r '.cmake_base.CMAKE_CUDA_ARCHITECTURES' "$CONFIG_FILE")
     if [ -z "$val" ] || [ "$val" = "null" ]; then
-        echo "::error::Missing cmake field: CMAKE_CUDA_ARCHITECTURES"
+        echo "::error::Missing cmake_base field: CMAKE_CUDA_ARCHITECTURES"
         exit 1
     fi
 fi
 
 echo "Configuration validated"
 
-# --- Phase 4: Generate build-config.sh ---
-generate_build_config() {
-    local config="$CONFIG_FILE"
+echo "Generating build configuration for variant $VARIANT_INDEX..."
 
-    local version=$(jq -r '.gromacs_version' "$config")
-    local cuda_ver=$(jq -r '.cuda_version' "$config")
-    local platform=$(jq -r '.platform' "$config")
-    local target_name=$(jq -r '.target_name' "$config")
-    local build_type=$(jq -r '.cmake.CMAKE_BUILD_TYPE' "$config")
-    local gmx_simd=$(jq -r '.cmake.GMX_SIMD' "$config")
-    local gmx_gpu=$(jq -r '.cmake.GMX_GPU' "$config")
-    local cuda_arch=$(jq -r '.cmake.CMAKE_CUDA_ARCHITECTURES' "$config")
-    local runtime_deps=$(jq -r '.runtime_deps | join(" ")' "$config")
+version=$(jq -r '.gromacs_version' "$CONFIG_FILE")
+platform=$(jq -r '.platform' "$CONFIG_FILE")
+build_type=$(jq -r '.cmake_base.CMAKE_BUILD_TYPE' "$CONFIG_FILE")
+runtime_deps=$(jq -r '.runtime_deps | join(" ")' "$CONFIG_FILE")
 
-    local gmx_mpi=$(jq -r '.cmake.GMX_MPI' "$config")
-    local gmx_bin threading
-    case "$gmx_mpi" in
-        ON)  gmx_bin="gmx_mpi"; threading="External MPI" ;;
-        OFF) gmx_bin="gmx";     threading="Thread-MPI" ;;
-        *)   echo "::error::GMX_MPI must be ON or OFF, got: $gmx_mpi"; exit 1 ;;
-    esac
+gmx_simd=$(jq -r ".variants[$VARIANT_INDEX].GMX_SIMD" "$CONFIG_FILE")
+gmx_double=$(jq -r ".variants[$VARIANT_INDEX].GMX_DOUBLE" "$CONFIG_FILE")
+cuda_ver=$(jq -r '.cuda_version' "$CONFIG_FILE")
 
-    local gmx_double=$(jq -r '.cmake.GMX_DOUBLE' "$config")
-    local precision
-    case "$gmx_double" in
-        ON)  precision="Double" ;;
-        OFF) precision="Single/Mixed" ;;
-        *)   echo "::error::GMX_DOUBLE must be ON or OFF, got: $gmx_double"; exit 1 ;;
-    esac
+case "$gmx_double" in
+    ON)  precision="double" ;;
+    OFF) precision="float" ;;
+    *)   echo "::error::GMX_DOUBLE must be ON or OFF, got: $gmx_double"; exit 1 ;;
+esac
 
-    local suffix=$(jq -r '.cmake.CMAKE_FIND_LIBRARY_SUFFIXES' "$config")
-    local lib_type
-    case "$suffix" in
-        .a)  lib_type="Static" ;;
-        .so) lib_type="Shared" ;;
-        *)   lib_type="Mixed ($suffix)" ;;
-    esac
+artifact_name="${gmx_simd}-${precision}.tar.bz2"
 
-    local gpu_label
-    if [ "$gmx_gpu" = "OFF" ]; then
-        gpu_label="None (CPU only)"
-    elif [ -n "$cuda_arch" ] && [ "$cuda_arch" != "null" ]; then
-        gpu_label="$gmx_gpu ($cuda_arch)"
-    else
-        gpu_label="$gmx_gpu"
-    fi
+gmx_mpi=$(jq -r '.cmake_base.GMX_MPI // "OFF"' "$CONFIG_FILE")
+case "$gmx_mpi" in
+    ON)  gmx_bin="gmx_mpi"; threading="External MPI" ;;
+    OFF) gmx_bin="gmx";     threading="Thread-MPI" ;;
+    *)   echo "::error::GMX_MPI must be ON or OFF, got: $gmx_mpi"; exit 1 ;;
+esac
 
-    local cmake_flags_str
-    cmake_flags_str=$(jq -r '.cmake | to_entries[] | "-D\(.key)=\(.value)" | @sh' "$config" | paste -sd ' ')
+if [ "$GMX_GPU_EFFECTIVE" = "CUDA" ]; then
+    cuda_arch=$(jq -r '.cmake_base.CMAKE_CUDA_ARCHITECTURES' "$CONFIG_FILE")
+    gpu_label="CUDA ($cuda_arch)"
+else
+    gpu_label="CPU only"
+fi
 
-    cat > "build-config.sh" << CONF_EOF
+suffix=$(jq -r '.cmake_base.CMAKE_FIND_LIBRARY_SUFFIXES // ".a"' "$CONFIG_FILE")
+case "$suffix" in
+    .a)  lib_type="Static" ;;
+    .so) lib_type="Shared" ;;
+    *)   lib_type="Mixed ($suffix)" ;;
+esac
+
+cmake_flags_str=$(jq -r --argjson idx "$VARIANT_INDEX" '
+    (.cmake_base | to_entries) as $base |
+    (.variants[$idx] | to_entries) as $variant |
+    ($base | map(.key) | map(select($variant | map(.key) | index(.) | not)) | map({key: ., value: ($base[] | select(.key == .) | .value)})) as $base_only |
+    ($base_only + $variant) |
+    sort_by(.key) |
+    .[] | "-D\(.key)=\(.value)" | @sh
+' "$CONFIG_FILE" | paste -sd ' ')
+
+target_name="GROMACS-${version}-${gmx_simd}-${precision}"
+
+cat > "build-config-${VARIANT_INDEX}.sh" << CONF_EOF
 #!/bin/bash
 GMX_VERSION="$version"
 GMX_BIN="$gmx_bin"
@@ -136,43 +135,38 @@ PLATFORM="$platform"
 TARGET_NAME="$target_name"
 BUILD_TYPE="$build_type"
 GMX_SIMD="$gmx_simd"
-GMX_GPU="$gmx_gpu"
-CUDA_ARCH="$cuda_arch"
+GMX_DOUBLE="$gmx_double"
+GMX_GPU="$GMX_GPU_EFFECTIVE"
 THREADING="$threading"
 PRECISION="$precision"
 LIB_TYPE="$lib_type"
 GPU_LABEL="$gpu_label"
 RUNTIME_DEPS="$runtime_deps"
-ARTIFACT_NAME="built_artefact.tar.bz2"
+ARTIFACT_NAME="$artifact_name"
+VARIANT_INDEX="$VARIANT_INDEX"
 CMAKE_FLAGS=($cmake_flags_str)
 SOURCE_DIR="\$(pwd)"
-BUILD_DIR="\$SOURCE_DIR/build"
-INSTALL_DIR="\$SOURCE_DIR/install"
+BUILD_DIR="\$SOURCE_DIR/build-${VARIANT_INDEX}"
+INSTALL_DIR="\$SOURCE_DIR/install-${VARIANT_INDEX}"
 CONF_EOF
 
-    chmod +x "build-config.sh"
-}
+chmod +x "build-config-${VARIANT_INDEX}.sh"
 
-echo "Generating build configuration..."
-generate_build_config
-echo "build-config.sh generated"
-
-# --- Phase 5: Source build-config.sh ---
-source ./build-config.sh
+source "./build-config-${VARIANT_INDEX}.sh"
 
 echo ""
-echo "Build Configuration:"
+echo "Build Configuration (variant $VARIANT_INDEX):"
 echo "  Target: $TARGET_NAME"
 echo "  GROMACS: $GMX_VERSION"
 echo "  Binary: $GMX_BIN"
 echo "  SIMD: $GMX_SIMD"
+echo "  Precision: $PRECISION"
 echo "  Threading: $THREADING"
 echo "  GPU: $GPU_LABEL"
-echo "  Precision: $PRECISION"
 echo "  Platform: $PLATFORM"
+echo "  Artifact: $ARTIFACT_NAME"
 echo ""
 
-# --- Phase 6: Install build dependencies ---
 if command -v apt-get &>/dev/null; then
     echo "Installing build dependencies..."
     sudo apt-get update -qq
@@ -193,8 +187,7 @@ else
     exit 1
 fi
 
-# --- Phase 7: Install CUDA (conditional) ---
-if [ "$GMX_GPU" = "CUDA" ]; then
+if [ "$GMX_GPU_EFFECTIVE" = "CUDA" ]; then
     echo "Installing NVIDIA CUDA Toolkit $CUDA_VERSION..."
 
     local_cuda_repo_distro=$(jq -r '.cuda_repo_distro' "$CONFIG_FILE")
@@ -212,10 +205,9 @@ if [ "$GMX_GPU" = "CUDA" ]; then
     echo "Verifying CUDA installation..."
     nvcc --version
 else
-    echo "CUDA installation skipped (GMX_GPU=$GMX_GPU)"
+    echo "CUDA installation skipped (GMX_GPU=$GMX_GPU_EFFECTIVE)"
 fi
 
-# --- Phase 8: Verify toolchain ---
 echo ""
 echo "Verifying toolchain versions:"
 echo "  CMake: $(cmake --version | head -1 | cut -d' ' -f3)"
@@ -227,5 +219,5 @@ export CC=gcc
 export CXX=g++
 
 echo ""
-echo "Prebuild environment setup complete"
+echo "Prebuild environment setup complete (variant $VARIANT_INDEX)"
 echo ""

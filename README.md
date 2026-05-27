@@ -6,29 +6,45 @@
 
 ## What is This?
 
-Automated build system for GROMACS molecular dynamics simulations. We provide pre-compiled GROMACS binaries for different platforms and configurations - no compilation required.
+Automated build system for [GROMACS](https://www.gromacs.org/) molecular dynamics simulations. We provide pre-compiled GROMACS binaries for Linux — no compilation required.
 
-**Just go to Release, download the one you want, extract, and run.**
+Each release includes four build variants covering the two most common SIMD instruction sets (AVX2, AVX-512) and both precision modes (single/mixed, double). Float builds include CUDA GPU acceleration.
 
-**If this repo saved you time, please give it a ⭐️ :D**
+**Go to Releases, download the variant you need, extract, and run.**
 
-## Requesting New Builds
+**If this repo saved you time, please give it a :star: :D**
 
-Open an issue with:
+## Available Variants
 
-**Build Request Template:**
+| File | SIMD | Precision | GPU |
+|------|------|-----------|-----|
+| `AVX2_256-float.tar.bz2` | AVX2 | Single/Mixed | CUDA |
+| `AVX2_256-double.tar.bz2` | AVX2 | Double | CPU only |
+| `AVX_512-float.tar.bz2` | AVX-512 | Single/Mixed | CUDA |
+| `AVX_512-double.tar.bz2` | AVX-512 | Double | CPU only |
+
+## Quick Start
+
+```bash
+# 1. Install runtime dependencies
+sudo apt update && sudo apt install libgomp1 libblas3 liblapack3
+
+# 2. Extract the build
+tar -xjf AVX2_256-float.tar.bz2
+
+# 3. Set up environment
+./setup_gromacs.sh
+
+# 4. Verify
+gmx --version
 ```
-GROMACS Version: [e.g., 2026.0, 2024.4]
-Platform: [e.g., Ubuntu 24.04]
-Configuration:
-  - GPU: [CUDA 12.x, OpenCL, OFF]
-  - MPI: [ON, OFF]
-  - Precision: [Single, Double]
-  - SIMD: [AVX2, AVX-512, SSE4.1]
-  - Library: [Static, Shared]
-```
 
-Note: with GROMACS quarterly releases, this repo will be updated with selected builds on Ubuntu 22.04 for maximum compatibility.
+## System Requirements
+
+- Linux x86_64 (Ubuntu 22.04+, glibc 2.35+)
+- CPU with AVX2 or AVX-512 support
+- NVIDIA GPU with compute capability 8.6+ (for CUDA/float builds only)
+- Minimum 4GB RAM (8GB+ recommended)
 
 ## Resources
 
@@ -41,26 +57,21 @@ Note: with GROMACS quarterly releases, this repo will be updated with selected b
 
 - **GROMACS:** LGPL v2.1 (https://gitlab.com/gromacs/gromacs)
 - **Build Scripts:** MIT License
-- **This repo:** Provides binaries only - GROMACS remains LGPL
+- **This repo:** Provides binaries only — GROMACS remains LGPL
 
 ## Disclaimer
 
-**Even if source is downloaded from Official FTP, these are unofficial builds.**
+**These are unofficial builds, even though source is downloaded from the official FTP.**
 
-- Not affiliated with GROMACS development team
+- Not affiliated with the GROMACS development team
 - Use at your own risk
 - Always validate simulation results
 - Report build issues here, GROMACS bugs upstream
 
 ## How It Works
 
-This repo uses GitHub Actions to automatically build GROMACS:
-
-1. **Trigger** - Push to `main` or manual dispatch
-2. **Download** - Fetch GROMACS source from official FTP
-3. **Build** - Compile with optimized settings
-4. **Package** - Create distributable artifact
-5. **Release** - Publish to GitHub Releases
-
-
-**Built with ❤️ for molecular dynamics**
+1. **Trigger** — Manual workflow dispatch on `main`
+2. **Download** — Fetch GROMACS source from official FTP
+3. **Build** — Compile 4 variants in parallel (2 SIMD x 2 precision)
+4. **Package** — Create per-variant `.tar.bz2` artifacts
+5. **Release** — Publish all builds + settings snapshot to GitHub Releases
