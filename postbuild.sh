@@ -39,21 +39,34 @@ echo "  Headers: $(find "$INSTALL_DIR/include" -type f 2>/dev/null | wc -l) file
 echo "  Share: $(find "$INSTALL_DIR/share" -type f 2>/dev/null | wc -l) files"
 echo ""
 
-# Create README for the artifact (quoted heredoc + sed for variable substitution)
-cat > "$INSTALL_DIR/README.txt" << 'EOF'
-GROMACS @@GMX_VERSION@@ - @@GMX_GPU@@ GPU Build
+if [ "$GMX_GPU" = "CUDA" ]; then
+    _TITLE="GROMACS $GMX_VERSION - CUDA GPU Build"
+else
+    _TITLE="GROMACS $GMX_VERSION - CPU Build"
+fi
+
+cat > "$INSTALL_DIR/README.txt" << EOF
+$_TITLE
 ===============================
 
 Build Configuration:
-  Version:        @@GMX_VERSION@@
-  Build type:     @@BUILD_TYPE@@
-  Libraries:      @@LIB_TYPE@@ (bundled in binary)
-  SIMD:           @@GMX_SIMD@@
-  Threading:      @@THREADING@@
-  GPU:            @@GPU_LABEL@@
-  Precision:      @@PRECISION@@
-  Platform:       @@PLATFORM@@
-  CUDA:           @@CUDA_VERSION@@ Toolkit
+  Version:        $GMX_VERSION
+  Build type:     $BUILD_TYPE
+  Libraries:      $LIB_TYPE (bundled in binary)
+  SIMD:           $GMX_SIMD
+  Threading:      $THREADING
+  GPU:            $GPU_LABEL
+  Precision:      $PRECISION
+  Platform:       $PLATFORM
+EOF
+
+if [ "$GMX_GPU" = "CUDA" ]; then
+    cat >> "$INSTALL_DIR/README.txt" << EOF
+  CUDA:           $CUDA_VERSION Toolkit
+EOF
+fi
+
+cat >> "$INSTALL_DIR/README.txt" << 'EOF'
 
 Installation:
   tar -xjf built_artefact.tar.bz2
@@ -66,56 +79,54 @@ Runtime Requirements (@@PLATFORM@@):
 Usage:
   source bin/GMXRC
   @@GMX_BIN@@ --version
+EOF
+
+sed -i \
+    -e "s|@@PLATFORM@@|$PLATFORM|g" \
+    -e "s|@@RUNTIME_DEPS@@|$RUNTIME_DEPS|g" \
+    -e "s|@@GMX_BIN@@|$GMX_BIN|g" \
+    "$INSTALL_DIR/README.txt"
+
+if [ "$GMX_GPU" = "CUDA" ]; then
+    cat >> "$INSTALL_DIR/README.txt" << 'EOF'
 
 Supported GPUs:
   Consumer: RTX 30 series (3060-3090 Ti)
              RTX 40 series (4050-4090)
-             RTX 50 series
+              RTX 50 series
   Datacenter: A100, A10, A30, A40 (Ampere)
-              H100, H200 (Hopper)
-              L40, L40S (Ada)
+               H100, H200 (Hopper)
+               L40, L40S (Ada)
   Compute Capabilities: 8.6, 8.9, 9.0, 12.0
+EOF
+fi
+
+cat >> "$INSTALL_DIR/README.txt" << 'EOF'
 
 For more information:
   https://manual.gromacs.org/current/
   https://www.gromacs.org/
 
 Contents:
-  bin/        - Executables (gmx, GMXRC, completion scripts)
+  bin/        - Executables (@@GMX_BIN@@, GMXRC, completion scripts)
   include/    - Header files for development
   share/      - Force fields, templates, man pages
 EOF
 
-sed -i \
-    -e "s|@@GMX_VERSION@@|$GMX_VERSION|g" \
-    -e "s|@@BUILD_TYPE@@|$BUILD_TYPE|g" \
-    -e "s|@@LIB_TYPE@@|$LIB_TYPE|g" \
-    -e "s|@@GMX_SIMD@@|$GMX_SIMD|g" \
-    -e "s|@@THREADING@@|$THREADING|g" \
-    -e "s|@@GPU_LABEL@@|$GPU_LABEL|g" \
-    -e "s|@@PRECISION@@|$PRECISION|g" \
-    -e "s|@@PLATFORM@@|$PLATFORM|g" \
-    -e "s|@@CUDA_VERSION@@|$CUDA_VERSION|g" \
-    -e "s|@@RUNTIME_DEPS@@|$RUNTIME_DEPS|g" \
-    -e "s|@@GMX_GPU@@|$GMX_GPU|g" \
-    -e "s|@@GMX_BIN@@|$GMX_BIN|g" \
-    "$INSTALL_DIR/README.txt"
+sed -i "s|@@GMX_BIN@@|$GMX_BIN|g" "$INSTALL_DIR/README.txt"
 
-# Conditional multi-GPU section
 if [ "$THREADING" = "External MPI" ]; then
-    cat >> "$INSTALL_DIR/README.txt" << 'EOF'
+    cat >> "$INSTALL_DIR/README.txt" << EOF
 
   Multi-GPU (MPI):
-    mpirun -np 4 @@GMX_BIN@@ mdrun -deffnm simulation
+    mpirun -np 4 $GMX_BIN mdrun -deffnm simulation
 EOF
-    sed -i "s|@@GMX_BIN@@|$GMX_BIN|g" "$INSTALL_DIR/README.txt"
 else
-    cat >> "$INSTALL_DIR/README.txt" << 'EOF'
+    cat >> "$INSTALL_DIR/README.txt" << EOF
 
   Multi-GPU (Thread-MPI):
-    @@GMX_BIN@@ mdrun -ntmpi 4 -deffnm simulation
+    $GMX_BIN mdrun -ntmpi 4 -deffnm simulation
 EOF
-    sed -i "s|@@GMX_BIN@@|$GMX_BIN|g" "$INSTALL_DIR/README.txt"
 fi
 
 # Create setup helper script (quoted heredoc + sed)

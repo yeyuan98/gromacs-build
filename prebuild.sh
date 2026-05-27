@@ -125,7 +125,7 @@ generate_build_config() {
     fi
 
     local cmake_flags_str
-    cmake_flags_str=$(jq -r '.cmake | to_entries[] | "-D\(.key)=\(.value)"' "$config" | paste -sd ' ')
+    cmake_flags_str=$(jq -r '.cmake | to_entries[] | "-D\(.key)=\(.value)" | @sh' "$config" | paste -sd ' ')
 
     cat > "build-config.sh" << CONF_EOF
 #!/bin/bash
