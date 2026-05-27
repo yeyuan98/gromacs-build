@@ -16,12 +16,17 @@ if [ ! -d "$INSTALL_DIR" ]; then
 fi
 
 # Verify GROMACS binary exists
-if [ ! -f "$INSTALL_DIR/bin/gmx" ]; then
-    echo "::error::GROMACS binary not found at $INSTALL_DIR/bin/gmx"
+if [ ! -f "$INSTALL_DIR/bin/gmx_mpi" ]; then
+    echo "::error::GROMACS binary not found at $INSTALL_DIR/bin/gmx_mpi"
     exit 1
 fi
 
 echo "GROMACS installation found at: $INSTALL_DIR"
+echo ""
+
+# Check dynamic dependencies (informational only)
+echo "Dynamic library dependencies:"
+ldd "$INSTALL_DIR/bin/gmx_mpi" || true
 echo ""
 
 # Display installation contents
@@ -56,7 +61,7 @@ Installation:
   tar -xjf built_artefact.tar.bz2
   ./setup_gromacs.sh
 
-Runtime Requirements (Ubuntu 24.04):
+Runtime Requirements (Ubuntu 22.04+):
   sudo apt update
   sudo apt install libgomp1
 

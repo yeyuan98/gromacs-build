@@ -75,6 +75,7 @@ echo ""
 # Display build summary
 echo "==================================="
 echo "GROMACS Build Summary:"
+<<<<<<< HEAD
 echo "  Version: 2026.2"
 echo "  Build type: Release"
 echo "  Libraries: Static"

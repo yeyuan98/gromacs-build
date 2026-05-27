@@ -345,7 +345,7 @@ jobs:
             ## Build Configuration
             - GROMACS Version: 2026.1
             - Build Type: Release (static libraries)
-            - Platform: Ubuntu 24.04 AMD64
+            - Platform: Ubuntu 22.04 AMD64 (compatible with Ubuntu 22.04+)
             - SIMD: AVX2_256
             - Threading: MPI
             - GPU: CUDA
@@ -357,7 +357,7 @@ jobs:
             - NVIDIA GPU
             - Minimum 4GB RAM (8GB+ recommended)
 
-            ## Runtime Dependencies (Ubuntu 24.04)
+            ## Runtime Dependencies (Ubuntu 22.04+)
             This build requires the following system packages:
             ```bash
             sudo apt update
