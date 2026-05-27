@@ -116,11 +116,7 @@ case "$suffix" in
 esac
 
 cmake_flags_str=$(jq -r --argjson idx "$VARIANT_INDEX" '
-    (.cmake_base | to_entries) as $base |
-    (.variants[$idx] | to_entries) as $variant |
-    ($base | map(.key) | map(select($variant | map(.key) | index(.) | not)) | map({key: ., value: ($base[] | select(.key == .) | .value)})) as $base_only |
-    ($base_only + $variant) |
-    sort_by(.key) |
+    .cmake_base * .variants[$idx] | to_entries | sort_by(.key) |
     .[] | "-D\(.key)=\(.value)" | @sh
 ' "$CONFIG_FILE" | paste -sd ' ')
 

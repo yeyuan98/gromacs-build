@@ -184,7 +184,6 @@ jobs:
         id: collect
         run: |
           VARIANT_COUNT=${{ needs.prepare.outputs.variant-count }}
-          GMX_VERSION=${{ needs.prepare.outputs.gromacs-version }}
 
           RELEASE_DIR="release"
           mkdir -p "$RELEASE_DIR"
@@ -208,21 +207,12 @@ jobs:
             exit 1
           fi
 
-          CONFIG_FILES="target-cmake.json"
-          for f in build-config-*.sh; do
-            [ -f "$f" ] && CONFIG_FILES="$CONFIG_FILES $f"
-          done
-
-          tar -cjf build_settings_snapshot.tar.bz2 $CONFIG_FILES
-          echo "Snapshot contents:"
-          tar -tjf build_settings_snapshot.tar.bz2
+          bash "$GITHUB_WORKSPACE/snapshot.sh" "$VARIANT_COUNT"
 
           echo ""
           echo "Release files:"
           ls -lh *.tar.bz2
           echo ""
-
-          echo "gmx-version=$GMX_VERSION" >> $GITHUB_OUTPUT
         shell: bash
 
       - name: Generate release tag
@@ -239,43 +229,13 @@ jobs:
         id: release-body
         run: |
           GMX_VERSION="${{ needs.prepare.outputs.gromacs-version }}"
-          VARIANT_COUNT="${{ needs.prepare.outputs.variant-count }}"
           RUNTIME_DEPS=$(jq -r '.runtime_deps | join(" ")' release/target-cmake.json)
 
-          cat > release_body.md << 'BODY_EOF'
-GROMACS ${GMX_VERSION} Linux Builds (Ubuntu 22.04 builder)
-
-## Variants
-
-| File | SIMD | Precision | GPU |
-|------|------|-----------|-----|
-| AVX2_256-float.tar.bz2 | AVX2_256 | Single/Mixed | CUDA |
-| AVX2_256-double.tar.bz2 | AVX2_256 | Double | CPU only |
-| AVX_512-float.tar.bz2 | AVX_512 | Single/Mixed | CUDA |
-| AVX_512-double.tar.bz2 | AVX_512 | Double | CPU only |
-
-## Runtime Dependencies
-```bash
-sudo apt update && sudo apt install ${RUNTIME_DEPS}
-```
-
-## Installation
-1. Download the variant matching your CPU and precision needs
-2. Extract: `tar -xjf <variant>.tar.bz2`
-3. Setup: `./setup_gromacs.sh` or `source bin/GMXRC`
-4. Verify: `gmx --version`
-
-## CUDA Builds (float variants)
-NVIDIA GPU with compute capability 8.6+ required:
-RTX 30/40/50 series, A100, H100, L40, etc.
-
-## Build Settings
-`build_settings_snapshot.tar.bz2` contains the source configuration and per-variant build configs.
-BODY_EOF
+          cp "$GITHUB_WORKSPACE/release-template.md" release_body.md
 
           sed -i \
-            -e "s|\${GMX_VERSION}|$GMX_VERSION|g" \
-            -e "s|\${RUNTIME_DEPS}|$RUNTIME_DEPS|g" \
+            -e "s|@@GMX_VERSION@@|$GMX_VERSION|g" \
+            -e "s|@@RUNTIME_DEPS@@|$RUNTIME_DEPS|g" \
             release_body.md
 
       - name: Create GitHub release
@@ -285,11 +245,7 @@ BODY_EOF
           name: GROMACS ${{ needs.prepare.outputs.gromacs-version }} Linux Builds
           body_path: release_body.md
           files: |
-            release/AVX2_256-float.tar.bz2
-            release/AVX2_256-double.tar.bz2
-            release/AVX_512-float.tar.bz2
-            release/AVX_512-double.tar.bz2
-            release/build_settings_snapshot.tar.bz2
+            release/*.tar.bz2
           draft: false
           prerelease: false
         env:

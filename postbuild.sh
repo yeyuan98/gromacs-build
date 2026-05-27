@@ -159,22 +159,22 @@ GMXDATA="$GMXPREFIX/share/gromacs"
 GROMACS_DIR="$GMXPREFIX"
 
 if [ -n "$PATH" ]; then
-    PATH=$(echo "$PATH" | tr ':' '\n' | grep -v '/gromacs' | grep -v '/GMXBIN' | tr '\n' ':' | sed 's/:$//')
+    PATH=$(echo "$PATH" | tr ':' '\n' | grep -v '/gromacs' | grep -v "$GMXBIN" | tr '\n' ':' | sed 's/:$//')
 fi
 
 if [ -n "$LD_LIBRARY_PATH" ]; then
-    LD_LIBRARY_PATH=$(echo "$LD_LIBRARY_PATH" | tr ':' '\n' | grep -v '/gromacs' | tr '\n' ':' | sed 's/:$//')
+    LD_LIBRARY_PATH=$(echo "$LD_LIBRARY_PATH" | tr ':' '\n' | grep -v '/gromacs' | grep -v "$GMXLDLIB" | tr '\n' ':' | sed 's/:$//')
 fi
 
 if [ -n "$MANPATH" ]; then
-    MANPATH=$(echo "$MANPATH" | tr ':' '\n' | grep -v '/gromacs' | tr '\n' ':' | sed 's/:$//')
+    MANPATH=$(echo "$MANPATH" | tr ':' '\n' | grep -v '/gromacs' | grep -v "$GMXMAN" | tr '\n' ':' | sed 's/:$//')
 fi
 
 export PATH="$GMXBIN:$PATH"
 if [ -d "$GMXLDLIB" ]; then
-    export LD_LIBRARY_PATH="$GMXLDLIB:$LD_LIBRARY_PATH"
+    export LD_LIBRARY_PATH="$GMXLDLIB${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 fi
-export MANPATH="$GMXMAN:$MANPATH"
+export MANPATH="$GMXMAN${MANPATH:+:$MANPATH}"
 export GMXBIN GMXLDLIB GMXMAN GMXDATA GROMACS_DIR
 
 if [ -n "$BASH_VERSION" ] && [ -f "$GMXBIN/gmx-completion.bash" ]; then
