@@ -43,12 +43,17 @@ echo ""
 echo "Installation complete"
 echo ""
 
-if [ ! -f "$INSTALL_DIR/bin/$GMX_BIN" ]; then
-    echo "::error::GROMACS binary not found at $INSTALL_DIR/bin/$GMX_BIN"
+GMX_BIN=$(find "$INSTALL_DIR/bin" -maxdepth 1 -name 'gmx*' -type f -executable | head -1 | xargs basename)
+
+if [ -z "$GMX_BIN" ]; then
+    echo "::error::No GROMACS binary (gmx*) found in $INSTALL_DIR/bin"
+    ls -la "$INSTALL_DIR/bin/"
     exit 1
 fi
 
-echo "Verifying installation:"
+sed -i "s|^GMX_BIN=.*|GMX_BIN=\"$GMX_BIN\"|" "$SOURCE_DIR/build-config-${VARIANT_INDEX}.sh"
+
+echo "Detected GROMACS binary: $GMX_BIN"
 ls -lh "$INSTALL_DIR/bin/$GMX_BIN"
 echo ""
 

@@ -96,8 +96,8 @@ artifact_name="${gmx_simd}-${precision}.tar.bz2"
 
 gmx_mpi=$(jq -r '.cmake_base.GMX_MPI // "OFF"' "$CONFIG_FILE")
 case "$gmx_mpi" in
-    ON)  gmx_bin="gmx_mpi"; threading="External MPI" ;;
-    OFF) gmx_bin="gmx";     threading="Thread-MPI" ;;
+    ON)  threading="External MPI" ;;
+    OFF) threading="Thread-MPI" ;;
     *)   echo "::error::GMX_MPI must be ON or OFF, got: $gmx_mpi"; exit 1 ;;
 esac
 
@@ -125,7 +125,7 @@ target_name="GROMACS-${version}-${gmx_simd}-${precision}"
 cat > "build-config-${VARIANT_INDEX}.sh" << CONF_EOF
 #!/bin/bash
 GMX_VERSION="$version"
-GMX_BIN="$gmx_bin"
+GMX_BIN="DETECTED_AFTER_INSTALL"
 CUDA_VERSION="$cuda_ver"
 PLATFORM="$platform"
 TARGET_NAME="$target_name"
