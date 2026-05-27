@@ -1,4 +1,25 @@
 {
   "target_name": "GROMACS-2026.2-CUDA",
-  "tarball_url": "https://ftp.gromacs.org/gromacs/gromacs-2026.2.tar.gz"
+  "tarball_url": "https://ftp.gromacs.org/gromacs/gromacs-2026.2.tar.gz",
+  "gromacs_version": "2026.2",
+  "runner": "ubuntu-22.04",
+  "cuda_version": "13.0",
+  "cuda_repo_distro": "ubuntu2204",
+  "cuda_keyring_version": "1.1-1",
+  "platform": "Ubuntu 22.04 AMD64",
+  "cmake": {
+    "CMAKE_BUILD_TYPE": "Release",
+    "GMX_BUILD_OWN_FFTW": "ON",
+    "GMX_GPU": "CUDA",
+    "GMX_MPI": "OFF",
+    "GMX_DOUBLE": "OFF",
+    "GMX_SIMD": "AVX_512",
+    "GMX_BUILD_SHARED_EXE": "ON",
+    "CMAKE_FIND_LIBRARY_SUFFIXES": ".a",
+    "GMXAPI": "OFF",
+    "GMX_INSTALL_NBLIB_API": "OFF",
+    "CMAKE_CUDA_ARCHITECTURES": "86;89;90;120",
+    "REGRESSIONTEST_DOWNLOAD": "OFF"
+  },
+  "runtime_deps": ["libgomp1"]
 }

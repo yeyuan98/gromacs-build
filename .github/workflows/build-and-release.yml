@@ -5,7 +5,6 @@ on:
     branches: [cuda]
     paths:
       - '.github/workflows/**'
-      - 'runner-images.txt'
       - 'target-cmake.json'
       - 'prebuild.sh'
       - 'build.sh'
@@ -31,7 +30,7 @@ jobs:
       - name: Read configuration files
         id: read-config
         run: |
-          RUNNER=$(cat runner-images.txt | tr -d '[:space:]')
+          RUNNER=$(jq -r '.runner' target-cmake.json | tr -d '[:space:]')
           TARGET_NAME=$(jq -r '.target_name' target-cmake.json)
           TARBALL_URL=$(jq -r '.tarball_url' target-cmake.json)
           
@@ -231,15 +230,12 @@ jobs:
           
           echo "Copying build scripts to: $WORK_DIR"
           
-          cp runner-images.txt "$WORK_DIR/"
           cp target-cmake.json "$WORK_DIR/"
           cp prebuild.sh "$WORK_DIR/"
           cp build.sh "$WORK_DIR/"
           cp postbuild.sh "$WORK_DIR/"
           
-          chmod +x "$WORK_DIR/prebuild.sh"
-          chmod +x "$WORK_DIR/build.sh"
-          chmod +x "$WORK_DIR/postbuild.sh"
+          chmod +x "$WORK_DIR"/*.sh
           
           echo "Scripts copied and made executable"
         shell: bash
@@ -291,11 +287,12 @@ jobs:
         run: |
           WORK_DIR="${{ steps.find-cmake.outputs.work-dir }}"
           
-          echo "Copying built_artefact.tar.bz2 to workspace..."
+          echo "Copying artifacts to workspace..."
           cp "$WORK_DIR/built_artefact.tar.bz2" .
+          cp "$WORK_DIR/build-config.sh" .
           
           echo "Artifacts ready for upload:"
-          ls -lh built_artefact.tar.bz2 runner-images.txt target-cmake.json *.sh
+          ls -lh built_artefact.tar.bz2 build-config.sh target-cmake.json *.sh
         shell: bash
       
       - name: Upload build artifacts
@@ -305,7 +302,7 @@ jobs:
           name: build-artifacts
           path: |
             built_artefact.tar.bz2
-            runner-images.txt
+            build-config.sh
             target-cmake.json
             prebuild.sh
             build.sh
@@ -334,69 +331,69 @@ jobs:
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "::notice::Release tag: $TAG"
       
+      - name: Generate release body
+        id: release-body
+        run: |
+          source artifacts/build-config.sh
+
+          cat > release_body.md << BODY_EOF
+          Build release for $TARGET_NAME
+
+          ## Build Configuration
+          - GROMACS Version: $GMX_VERSION
+          - Build Type: $BUILD_TYPE ($LIB_TYPE libraries)
+          - Platform: $PLATFORM (compatible with Ubuntu 22.04+)
+          - SIMD: $GMX_SIMD
+          - Threading: $THREADING
+          - GPU: $GPU_LABEL
+          - Precision: $PRECISION
+
+          ## System Requirements
+          - Linux x86_64 (glibc 2.17+)
+          - CPU with $GMX_SIMD support
+          - NVIDIA GPU (for CUDA builds)
+          - Minimum 4GB RAM (8GB+ recommended)
+
+          ## Runtime Dependencies ($PLATFORM)
+          This build requires the following system packages:
+          \`\`\`bash
+          sudo apt update && sudo apt install $RUNTIME_DEPS
+          \`\`\`
+
+          Note: $LIB_TYPE libraries (libgromacs, FFTW) are bundled in the binary.
+
+          ## Installation
+          1. Download \`built_artefact.tar.bz2\`
+          2. Extract: \`tar -xjf built_artefact.tar.bz2\`
+          3. Setup environment (choose one):
+             - Quick setup: \`./setup_gromacs.sh\`
+             - Or manually: \`source bin/GMXRC\`
+          4. Verify: \`$GMX_BIN --version\`
+
+          ## Artifacts
+          - \`built_artefact.tar.bz2\` - GROMACS installation package
+          - \`build-config.sh\` - Generated build configuration
+          - \`target-cmake.json\` - Build target configuration
+          - \`prebuild.sh\` / \`build.sh\` / \`postbuild.sh\` - Build scripts
+
+          ## Runner Information
+          - Runner: ${{ needs.prepare.outputs.expected-runner }}
+          - Build Time: ${{ github.event.head_commit.timestamp }}
+
+          ## Documentation
+          - GROMACS Manual: https://manual.gromacs.org/current/
+          - Installation Guide: https://manual.gromacs.org/current/install-guide/index.html
+          BODY_EOF
+      
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: ${{ needs.prepare.outputs.target-name }} Build
-          body: |
-            Build release for ${{ needs.prepare.outputs.target-name }}
-
-            ## Build Configuration
-            - GROMACS Version: 2026.2
-            - Build Type: Release (static libraries)
-            - Platform: Ubuntu 22.04 AMD64 (compatible with Ubuntu 22.04+)
-            - SIMD: AVX_512
-            - Threading: Thread-MPI
-            - GPU: CUDA
-            - Precision: Single/Mixed
-
-            ## System Requirements
-            - Linux x86_64 (glibc 2.17+)
-            - CPU with AVX2 support
-            - NVIDIA GPU
-            - Minimum 4GB RAM (8GB+ recommended)
-
-            ## Runtime Dependencies (Ubuntu 22.04+)
-            This build requires the following system packages:
-            ```bash
-            sudo apt update
-            sudo apt install libgomp1 libopenmpi3t64
-            ```
-
-            Note: Static libraries (libgromacs, FFTW) are bundled in the binary.
-            Only OpenMP (libgomp1) runtime library is required.
-
-            ## Installation
-            1. Download built_artefact.tar.bz2
-            2. Extract: tar -xjf built_artefact.tar.bz2
-            3. Setup environment (choose one):
-               - Quick setup: ./setup_gromacs.sh
-               - Or manually: source bin/GMXRC
-            4. Verify: gmx --version
-
-            Expected output should show:
-            - GPU support: OFF
-            - SIMD instructions: AVX2_256
-
-            ## Artifacts
-            - `built_artefact.tar.bz2` - GROMACS installation package
-            - `runner-images.txt` - Runner configuration
-            - `target-cmake.json` - Build target configuration
-            - `prebuild.sh` - Pre-build script (dependency installation)
-            - `build.sh` - Build script (CMake configuration and compilation)
-            - `postbuild.sh` - Post-build script (artifact creation)
-
-            ## Runner Information
-            - Runner: ${{ needs.prepare.outputs.expected-runner }}
-            - Build Time: ${{ github.event.head_commit.timestamp }}
-
-            ## Documentation
-            - GROMACS Manual: https://manual.gromacs.org/current/
-            - Installation Guide: https://manual.gromacs.org/current/install-guide/index.html
+          body_path: release_body.md
           files: |
             artifacts/built_artefact.tar.bz2
-            artifacts/runner-images.txt
+            artifacts/build-config.sh
             artifacts/target-cmake.json
             artifacts/prebuild.sh
             artifacts/build.sh

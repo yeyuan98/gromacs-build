@@ -1,13 +1,11 @@
 #!/bin/bash
 set -e
 
+source "$(dirname "$0")/build-config.sh"
+
 echo "==================================="
 echo "POSTBUILD: Creating GROMACS artifact"
 echo "==================================="
-
-# Get source directory
-SOURCE_DIR=$(pwd)
-INSTALL_DIR="$SOURCE_DIR/install"
 
 # Verify installation directory exists
 if [ ! -d "$INSTALL_DIR" ]; then
@@ -16,8 +14,8 @@ if [ ! -d "$INSTALL_DIR" ]; then
 fi
 
 # Verify GROMACS binary exists
-if [ ! -f "$INSTALL_DIR/bin/gmx" ]; then
-    echo "::error::GROMACS binary not found at $INSTALL_DIR/bin/gmx"
+if [ ! -f "$INSTALL_DIR/bin/$GMX_BIN" ]; then
+    echo "::error::GROMACS binary not found at $INSTALL_DIR/bin/$GMX_BIN"
     exit 1
 fi
 
@@ -26,51 +24,48 @@ echo ""
 
 # Check dynamic dependencies (informational only)
 echo "Dynamic library dependencies:"
-ldd "$INSTALL_DIR/bin/gmx_mpi" || true
+ldd "$INSTALL_DIR/bin/$GMX_BIN" || true
 echo ""
 
 # Display installation contents
 echo "Installation contents:"
-echo "  Binaries: $(ls $INSTALL_DIR/bin/ | wc -l) files"
-if [ -d "$INSTALL_DIR/lib" ] && [ "$(ls -A $INSTALL_DIR/lib 2>/dev/null)" ]; then
-    echo "  Libraries: $(ls $INSTALL_DIR/lib/ | wc -l) files"
+echo "  Binaries: $(ls "$INSTALL_DIR/bin/" | wc -l) files"
+if [ -d "$INSTALL_DIR/lib" ] && [ "$(ls -A "$INSTALL_DIR/lib" 2>/dev/null)" ]; then
+    echo "  Libraries: $(ls "$INSTALL_DIR/lib/" | wc -l) files"
 else
-    echo "  Libraries: Static (bundled in binary)"
+    echo "  Libraries: $LIB_TYPE (bundled in binary)"
 fi
-echo "  Headers: $(find $INSTALL_DIR/include -type f 2>/dev/null | wc -l) files"
-echo "  Share: $(find $INSTALL_DIR/share -type f 2>/dev/null | wc -l) files"
+echo "  Headers: $(find "$INSTALL_DIR/include" -type f 2>/dev/null | wc -l) files"
+echo "  Share: $(find "$INSTALL_DIR/share" -type f 2>/dev/null | wc -l) files"
 echo ""
 
-# Create README for the artifact
+# Create README for the artifact (quoted heredoc + sed for variable substitution)
 cat > "$INSTALL_DIR/README.txt" << 'EOF'
-GROMACS 2026.2 - CUDA GPU Build
+GROMACS @@GMX_VERSION@@ - @@GMX_GPU@@ GPU Build
 ===============================
 
 Build Configuration:
-  Version:        2026.2
-  Build type:     Release
-  Libraries:      Static (bundled in binary)
-  SIMD:           AVX_512
-  Threading:      Thread-MPI
-  GPU:            CUDA (86;89;90;120)
-  Precision:      Single/Mixed
-  Platform:       Ubuntu 22.04 AMD64
-  CUDA:           13.0 Toolkit
+  Version:        @@GMX_VERSION@@
+  Build type:     @@BUILD_TYPE@@
+  Libraries:      @@LIB_TYPE@@ (bundled in binary)
+  SIMD:           @@GMX_SIMD@@
+  Threading:      @@THREADING@@
+  GPU:            @@GPU_LABEL@@
+  Precision:      @@PRECISION@@
+  Platform:       @@PLATFORM@@
+  CUDA:           @@CUDA_VERSION@@ Toolkit
 
 Installation:
   tar -xjf built_artefact.tar.bz2
   ./setup_gromacs.sh
 
-Runtime Requirements (Ubuntu 22.04+):
+Runtime Requirements (@@PLATFORM@@):
   sudo apt update
-  sudo apt install libgomp1
+  sudo apt install @@RUNTIME_DEPS@@
 
 Usage:
   source bin/GMXRC
-  gmx_mpi --version
-
-  Multi-GPU:
-    mpirun -np 4 gmx_mpi mdrun -deffnm simulation
+  @@GMX_BIN@@ --version
 
 Supported GPUs:
   Consumer: RTX 30 series (3060-3090 Ti)
@@ -91,7 +86,39 @@ Contents:
   share/      - Force fields, templates, man pages
 EOF
 
-# Create setup helper script
+sed -i \
+    -e "s|@@GMX_VERSION@@|$GMX_VERSION|g" \
+    -e "s|@@BUILD_TYPE@@|$BUILD_TYPE|g" \
+    -e "s|@@LIB_TYPE@@|$LIB_TYPE|g" \
+    -e "s|@@GMX_SIMD@@|$GMX_SIMD|g" \
+    -e "s|@@THREADING@@|$THREADING|g" \
+    -e "s|@@GPU_LABEL@@|$GPU_LABEL|g" \
+    -e "s|@@PRECISION@@|$PRECISION|g" \
+    -e "s|@@PLATFORM@@|$PLATFORM|g" \
+    -e "s|@@CUDA_VERSION@@|$CUDA_VERSION|g" \
+    -e "s|@@RUNTIME_DEPS@@|$RUNTIME_DEPS|g" \
+    -e "s|@@GMX_GPU@@|$GMX_GPU|g" \
+    -e "s|@@GMX_BIN@@|$GMX_BIN|g" \
+    "$INSTALL_DIR/README.txt"
+
+# Conditional multi-GPU section
+if [ "$THREADING" = "External MPI" ]; then
+    cat >> "$INSTALL_DIR/README.txt" << 'EOF'
+
+  Multi-GPU (MPI):
+    mpirun -np 4 @@GMX_BIN@@ mdrun -deffnm simulation
+EOF
+    sed -i "s|@@GMX_BIN@@|$GMX_BIN|g" "$INSTALL_DIR/README.txt"
+else
+    cat >> "$INSTALL_DIR/README.txt" << 'EOF'
+
+  Multi-GPU (Thread-MPI):
+    @@GMX_BIN@@ mdrun -ntmpi 4 -deffnm simulation
+EOF
+    sed -i "s|@@GMX_BIN@@|$GMX_BIN|g" "$INSTALL_DIR/README.txt"
+fi
+
+# Create setup helper script (quoted heredoc + sed)
 cat > "$INSTALL_DIR/setup_gromacs.sh" << 'EOF'
 #!/bin/bash
 # GROMACS environment setup script (relocatable)
@@ -102,14 +129,14 @@ export GMXDATA="$GMX_DIR/share/gromacs"
 export GROMACS_DIR="$GMX_DIR"
 echo "GROMACS environment set up"
 echo "GMX bin: $GMX_DIR/bin"
-echo "GMX version: $($GMX_DIR/bin/gmx_mpi --version 2>&1 | head -1)"
+echo "GMX version: $($GMX_DIR/bin/@@GMX_BIN@@ --version 2>&1 | head -1)"
 EOF
+sed -i "s|@@GMX_BIN@@|$GMX_BIN|g" "$INSTALL_DIR/setup_gromacs.sh"
 chmod +x "$INSTALL_DIR/setup_gromacs.sh"
 
 # Replace GMXRC with relocatable versions
 echo "Creating relocatable GMXRC scripts..."
 
-# GMXRC - shell-agnostic wrapper that detects script location
 cat > "$INSTALL_DIR/bin/GMXRC" << 'GMXRC_EOF'
 #!/bin/sh
 # Relocatable GMXRC - detects installation directory automatically
@@ -117,7 +144,6 @@ GMXRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$GMXRC_DIR/GMXRC.bash"
 GMXRC_EOF
 
-# GMXRC.bash - bash/zsh configuration with relocatable paths
 cat > "$INSTALL_DIR/bin/GMXRC.bash" << 'GMXRC_BASH_EOF'
 #!/bin/bash
 # Relocatable GROMACS environment setup for bash/zsh
@@ -162,7 +188,6 @@ if [ -n "$BASH_VERSION" ] && [ -f "$GMXBIN/gmx-completion.bash" ]; then
 fi
 GMXRC_BASH_EOF
 
-# GMXRC.csh - csh/tcsh configuration with relocatable paths
 cat > "$INSTALL_DIR/bin/GMXRC.csh" << 'GMXRC_CSH_EOF'
 #!/bin/csh
 # Relocatable GROMACS environment setup for csh/tcsh
@@ -182,7 +207,6 @@ else
 endif
 GMXRC_CSH_EOF
 
-# GMXRC.zsh - zsh configuration (delegates to bash version)
 cat > "$INSTALL_DIR/bin/GMXRC.zsh" << 'GMXRC_ZSH_EOF'
 #!/bin/zsh
 # Relocatable GROMACS environment setup for zsh
@@ -197,47 +221,45 @@ echo "Relocatable GMXRC scripts created"
 echo "Creating artifact tarball..."
 WORKING_DIR=$(pwd)
 cd "$INSTALL_DIR"
-tar -cjf "$WORKING_DIR/built_artefact.tar.bz2" .
+tar -cjf "$WORKING_DIR/$ARTIFACT_NAME" .
 cd "$WORKING_DIR"
 
 # Verify artifact was created
-if [ ! -f "built_artefact.tar.bz2" ]; then
-    echo "::error::built_artefact.tar.bz2 was not created"
+if [ ! -f "$ARTIFACT_NAME" ]; then
+    echo "::error::$ARTIFACT_NAME was not created"
     exit 1
 fi
 
-# Get artifact size
-ARTIFACT_SIZE=$(stat -c%s "built_artefact.tar.bz2" 2>/dev/null || stat -f%z "built_artefact.tar.bz2" 2>/dev/null || echo "unknown")
-ARTIFACT_SIZE_HR=$(du -h "built_artefact.tar.bz2" | cut -f1)
+ARTIFACT_SIZE_HR=$(du -h "$ARTIFACT_NAME" | cut -f1)
 
 echo ""
 echo "Postbuild complete"
-echo "Artifact created: built_artefact.tar.bz2 ($ARTIFACT_SIZE_HR)"
+echo "Artifact created: $ARTIFACT_NAME ($ARTIFACT_SIZE_HR)"
 echo ""
 
 # Show artifact contents (first 20 files)
 echo "Artifact contents (first 20 files):"
-tar -tjf built_artefact.tar.bz2 | head -20
+tar -tjf "$ARTIFACT_NAME" | head -20
 echo "..."
 echo ""
 
 # Verify artifact integrity
 echo "Verifying artifact integrity..."
-if tar -tjf built_artefact.tar.bz2 | grep -q "bin/gmx_mpi"; then
+if tar -tjf "$ARTIFACT_NAME" | grep -qE "bin/${GMX_BIN}$"; then
     echo "::pass::GROMACS binary found in artifact"
 else
     echo "::error::GROMACS binary not found in artifact"
     exit 1
 fi
 
-if tar -tjf built_artefact.tar.bz2 | grep -q "bin/GMXRC"; then
+if tar -tjf "$ARTIFACT_NAME" | grep -q "bin/GMXRC"; then
     echo "::pass::GMXRC setup script found in artifact"
 else
     echo "::error::GMXRC not found in artifact"
     exit 1
 fi
 
-if tar -tjf built_artefact.tar.bz2 | grep -q "share/gromacs/top/"; then
+if tar -tjf "$ARTIFACT_NAME" | grep -q "share/gromacs/top/"; then
     echo "::pass::Force field files found in artifact"
 else
     echo "::error::Force field files not found in artifact"
