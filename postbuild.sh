@@ -16,8 +16,8 @@ if [ ! -d "$INSTALL_DIR" ]; then
 fi
 
 # Verify GROMACS binary exists
-if [ ! -f "$INSTALL_DIR/bin/gmx_mpi" ]; then
-    echo "::error::GROMACS binary not found at $INSTALL_DIR/bin/gmx_mpi"
+if [ ! -f "$INSTALL_DIR/bin/gmx" ]; then
+    echo "::error::GROMACS binary not found at $INSTALL_DIR/bin/gmx"
     exit 1
 fi
 
@@ -38,18 +38,18 @@ echo ""
 
 # Create README for the artifact
 cat > "$INSTALL_DIR/README.txt" << 'EOF'
-GROMACS 2026.1 - CUDA GPU Build
+GROMACS 2026.2 - CUDA GPU Build
 ===============================
 
 Build Configuration:
-  Version:        2026.1
+  Version:        2026.2
   Build type:     Release
   Libraries:      Static (bundled in binary)
-  SIMD:           AVX2_256
-  Threading:      MPI
+  SIMD:           AVX_512
+  Threading:      Thread-MPI
   GPU:            CUDA (86;89;90;120)
   Precision:      Single/Mixed
-  Platform:       Ubuntu 24.04 AMD64
+  Platform:       Ubuntu 22.04 AMD64
   CUDA:           13.0 Toolkit
 
 Installation:
@@ -75,10 +75,6 @@ Supported GPUs:
               H100, H200 (Hopper)
               L40, L40S (Ada)
   Compute Capabilities: 8.6, 8.9, 9.0, 12.0
-
-Troubleshooting:
-  If GPU-aware MPI fails to auto-detect:
-    export GMX_FORCE_GPU_AWARE_MPI=1
 
 For more information:
   https://manual.gromacs.org/current/

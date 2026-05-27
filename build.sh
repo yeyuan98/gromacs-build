@@ -2,7 +2,7 @@
 set -e
 
 echo "==================================="
-echo "BUILD: Building GROMACS 2026.0"
+echo "BUILD: Building GROMACS 2026.2"
 echo "==================================="
 
 # Get source directory (where CMakeLists.txt is located)
@@ -27,10 +27,10 @@ cmake "$SOURCE_DIR" \
     -DCMAKE_BUILD_TYPE=Release \
     -DGMX_BUILD_OWN_FFTW=ON \
     -DGMX_GPU=CUDA \
-    -DGMX_MPI=ON \
+    -DGMX_MPI=OFF \
     -DGMX_DOUBLE=OFF \
-    -DGMX_SIMD=AVX2_256 \
-    -DGMX_BUILD_SHARED_EXE=OFF \
+    -DGMX_SIMD=AVX_512 \
+    -DGMX_BUILD_SHARED_EXE=ON \
     -DCMAKE_FIND_LIBRARY_SUFFIXES=".a" \
     -DGMXAPI=OFF \
     -DGMX_INSTALL_NBLIB_API=OFF \
@@ -75,11 +75,11 @@ echo ""
 # Display build summary
 echo "==================================="
 echo "GROMACS Build Summary:"
-echo "  Version: 2026.1"
+echo "  Version: 2026.2"
 echo "  Build type: Release"
 echo "  Libraries: Static"
-echo "  SIMD: AVX2_256"
-echo "  Threading: Thread-MPI + MPI"
+echo "  SIMD: AVX_512"
+echo "  Threading: Thread-MPI"
 echo "  GPU: CUDA (86;89;90;120)"
 echo "  Precision: Single/Mixed"
 echo "  Install path: $INSTALL_PREFIX"
