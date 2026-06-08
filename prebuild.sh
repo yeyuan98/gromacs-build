@@ -101,8 +101,10 @@ case "$gmx_mpi" in
     *)   echo "::error::GMX_MPI must be ON or OFF, got: $gmx_mpi"; exit 1 ;;
 esac
 
-if [ "$threading" = "External MPI" ]; then
+if [ "$threading" = "External MPI" ] && [ "$GMX_GPU_EFFECTIVE" = "CUDA" ]; then
     artifact_name="${gmx_simd}-${precision}-mpi.tar.bz2"
+elif [ "$threading" = "External MPI" ]; then
+    artifact_name="${gmx_simd}-${precision}-cpu-mpi.tar.bz2"
 else
     artifact_name="${gmx_simd}-${precision}.tar.bz2"
 fi
@@ -130,8 +132,10 @@ cmake_flags_str=$(jq -r --argjson idx "$VARIANT_INDEX" '
     .[] | "-D\(.key)=\(.value)" | @sh
 ' "$CONFIG_FILE" | paste -sd ' ')
 
-if [ "$threading" = "External MPI" ]; then
+if [ "$threading" = "External MPI" ] && [ "$GMX_GPU_EFFECTIVE" = "CUDA" ]; then
     target_name="GROMACS-${version}-${gmx_simd}-${precision}-mpi"
+elif [ "$threading" = "External MPI" ]; then
+    target_name="GROMACS-${version}-${gmx_simd}-${precision}-cpu-mpi"
 else
     target_name="GROMACS-${version}-${gmx_simd}-${precision}"
 fi

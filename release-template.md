@@ -10,6 +10,8 @@ GROMACS @@GMX_VERSION@@ Linux Builds (Ubuntu 22.04 builder)
 | AVX_512-double.tar.bz2 | AVX_512 | Double | CPU only |
 | AVX2_256-float-mpi.tar.bz2 | AVX2_256 | Single/Mixed | CUDA + MPI |
 | AVX_512-float-mpi.tar.bz2 | AVX_512 | Single/Mixed | CUDA + MPI |
+| AVX2_256-float-cpu-mpi.tar.bz2 | AVX2_256 | Single/Mixed | CPU + MPI |
+| AVX_512-float-cpu-mpi.tar.bz2 | AVX_512 | Single/Mixed | CPU + MPI |
 
 ## Runtime Dependencies
 ```bash
@@ -26,7 +28,7 @@ sudo apt update && sudo apt install @@RUNTIME_DEPS@@
 NVIDIA GPU with compute capability 8.6+ required:
 RTX 30/40/50 series, A100, H100, L40, etc.
 
-## MPI Builds (float-mpi variants)
+## MPI Builds (mpi and cpu-mpi variants)
 These variants use external MPI for multi-node parallelism.
 Additional runtime requirement:
 ```bash
