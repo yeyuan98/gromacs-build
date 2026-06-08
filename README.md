@@ -8,7 +8,7 @@
 
 Automated build system for [GROMACS](https://www.gromacs.org/) molecular dynamics simulations. We provide pre-compiled GROMACS binaries for Linux — no compilation required.
 
-Each release includes four build variants covering the two most common SIMD instruction sets (AVX2, AVX-512) and both precision modes (single/mixed, double). Float builds include CUDA GPU acceleration.
+Each release includes six build variants covering the two most common SIMD instruction sets (AVX2, AVX-512), both precision modes (single/mixed, double), and optional MPI support. Float builds include CUDA GPU acceleration. MPI builds enable multi-node parallelism.
 
 **Go to Releases, download the variant you need, extract, and run.**
 
@@ -22,6 +22,8 @@ Each release includes four build variants covering the two most common SIMD inst
 | `AVX2_256-double.tar.bz2` | AVX2 | Double | CPU only |
 | `AVX_512-float.tar.bz2` | AVX-512 | Single/Mixed | CUDA |
 | `AVX_512-double.tar.bz2` | AVX-512 | Double | CPU only |
+| `AVX2_256-float-mpi.tar.bz2` | AVX2 | Single/Mixed | CUDA + MPI |
+| `AVX_512-float-mpi.tar.bz2` | AVX-512 | Single/Mixed | CUDA + MPI |
 
 ## Quick Start
 
@@ -72,6 +74,6 @@ gmx --version
 
 1. **Trigger** — Manual workflow dispatch on `main`
 2. **Download** — Fetch GROMACS source from official FTP
-3. **Build** — Compile 4 variants in parallel (2 SIMD x 2 precision)
+3. **Build** — Compile 6 variants in parallel (2 SIMD x 2 precision + 2 SIMD x float x MPI)
 4. **Package** — Create per-variant `.tar.bz2` artifacts
 5. **Release** — Publish all builds + settings snapshot to GitHub Releases

@@ -92,14 +92,20 @@ case "$gmx_double" in
     *)   echo "::error::GMX_DOUBLE must be ON or OFF, got: $gmx_double"; exit 1 ;;
 esac
 
-artifact_name="${gmx_simd}-${precision}.tar.bz2"
-
-gmx_mpi=$(jq -r '.cmake_base.GMX_MPI // "OFF"' "$CONFIG_FILE")
+gmx_mpi=$(jq -r --argjson idx "$VARIANT_INDEX" '
+    (.cmake_base * .variants[$idx]).GMX_MPI // "OFF"
+' "$CONFIG_FILE")
 case "$gmx_mpi" in
     ON)  threading="External MPI" ;;
     OFF) threading="Thread-MPI" ;;
     *)   echo "::error::GMX_MPI must be ON or OFF, got: $gmx_mpi"; exit 1 ;;
 esac
+
+if [ "$threading" = "External MPI" ]; then
+    artifact_name="${gmx_simd}-${precision}-mpi.tar.bz2"
+else
+    artifact_name="${gmx_simd}-${precision}.tar.bz2"
+fi
 
 if [ "$GMX_GPU_EFFECTIVE" = "CUDA" ]; then
     cuda_arch=$(jq -r '.cmake_base.CMAKE_CUDA_ARCHITECTURES' "$CONFIG_FILE")
@@ -115,12 +121,20 @@ case "$suffix" in
     *)   lib_type="Mixed ($suffix)" ;;
 esac
 
+if [ "$threading" = "External MPI" ]; then
+    runtime_deps="$runtime_deps openmpi-bin libopenmpi-dev"
+fi
+
 cmake_flags_str=$(jq -r --argjson idx "$VARIANT_INDEX" '
     .cmake_base * .variants[$idx] | to_entries | sort_by(.key) |
     .[] | "-D\(.key)=\(.value)" | @sh
 ' "$CONFIG_FILE" | paste -sd ' ')
 
-target_name="GROMACS-${version}-${gmx_simd}-${precision}"
+if [ "$threading" = "External MPI" ]; then
+    target_name="GROMACS-${version}-${gmx_simd}-${precision}-mpi"
+else
+    target_name="GROMACS-${version}-${gmx_simd}-${precision}"
+fi
 
 cat > "build-config-${VARIANT_INDEX}.sh" << CONF_EOF
 #!/bin/bash

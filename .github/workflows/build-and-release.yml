@@ -26,7 +26,7 @@ jobs:
           TARBALL_URL=$(jq -r '.tarball_url' target-cmake.json)
           GMX_VERSION=$(jq -r '.gromacs_version' target-cmake.json)
           VARIANT_COUNT=$(jq '.variants | length' target-cmake.json)
-          VARIANT_MATRIX=$(jq -c '.variants | to_entries | map({index: .key, simd: .value.GMX_SIMD, double: .value.GMX_DOUBLE})' target-cmake.json)
+          VARIANT_MATRIX=$(jq -c '.variants | to_entries | map({index: .key, simd: .value.GMX_SIMD, double: .value.GMX_DOUBLE, mpi: (.value.GMX_MPI // "OFF")})' target-cmake.json)
 
           echo "tarball-url=$TARBALL_URL" >> $GITHUB_OUTPUT
           echo "variant-count=$VARIANT_COUNT" >> $GITHUB_OUTPUT
@@ -142,7 +142,7 @@ jobs:
       - name: Prepare artifact for upload
         run: |
           WORK_DIR="${{ steps.find-cmake.outputs.work-dir }}"
-          ARTIFACT_NAME="${{ matrix.variant.simd }}-$( [ '${{ matrix.variant.double }}' = 'ON' ] && echo double || echo float ).tar.bz2"
+          ARTIFACT_NAME="${{ matrix.variant.simd }}-$( [ '${{ matrix.variant.double }}' = 'ON' ] && echo double || echo float )$( [ '${{ matrix.variant.mpi }}' = 'ON' ] && echo '-mpi' || echo '').tar.bz2"
           CONFIG_NAME="build-config-${{ matrix.variant.index }}.sh"
 
           cp "$WORK_DIR/$ARTIFACT_NAME" .

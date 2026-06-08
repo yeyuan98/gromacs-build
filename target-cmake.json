@@ -23,6 +23,8 @@
     { "GMX_SIMD": "AVX2_256", "GMX_DOUBLE": "OFF" },
     { "GMX_SIMD": "AVX2_256", "GMX_DOUBLE": "ON",  "GMX_GPU": "OFF", "CMAKE_CUDA_ARCHITECTURES": "" },
     { "GMX_SIMD": "AVX_512",  "GMX_DOUBLE": "OFF" },
-    { "GMX_SIMD": "AVX_512",  "GMX_DOUBLE": "ON",  "GMX_GPU": "OFF", "CMAKE_CUDA_ARCHITECTURES": "" }
+    { "GMX_SIMD": "AVX_512",  "GMX_DOUBLE": "ON",  "GMX_GPU": "OFF", "CMAKE_CUDA_ARCHITECTURES": "" },
+    { "GMX_SIMD": "AVX2_256", "GMX_DOUBLE": "OFF", "GMX_MPI": "ON" },
+    { "GMX_SIMD": "AVX_512",  "GMX_DOUBLE": "OFF", "GMX_MPI": "ON" }
   ]
 }
