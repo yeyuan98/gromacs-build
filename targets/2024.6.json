@@ -1,0 +1,32 @@
+{
+  "gromacs_version": "2024.6",
+  "tarball_url": "https://ftp.gromacs.org/gromacs/gromacs-2024.6.tar.gz",
+  "runner": "ubuntu-22.04",
+  "cuda_version": "12.8",
+  "cuda_repo_distro": "ubuntu2204",
+  "cuda_keyring_version": "1.1-1",
+  "platform": "Ubuntu 22.04 AMD64",
+  "cmake_base": {
+    "CMAKE_BUILD_TYPE": "Release",
+    "GMX_BUILD_OWN_FFTW": "ON",
+    "GMX_GPU": "CUDA",
+    "GMX_MPI": "OFF",
+    "GMX_BUILD_SHARED_EXE": "ON",
+    "CMAKE_FIND_LIBRARY_SUFFIXES": ".a",
+    "GMXAPI": "OFF",
+    "GMX_INSTALL_NBLIB_API": "OFF",
+    "CMAKE_CUDA_ARCHITECTURES": "86;89;90;120",
+    "REGRESSIONTEST_DOWNLOAD": "OFF"
+  },
+  "runtime_deps": ["libgomp1", "libblas3", "liblapack3"],
+  "variants": [
+    { "GMX_SIMD": "AVX2_256", "GMX_DOUBLE": "OFF" },
+    { "GMX_SIMD": "AVX2_256", "GMX_DOUBLE": "ON",  "GMX_GPU": "OFF", "CMAKE_CUDA_ARCHITECTURES": "" },
+    { "GMX_SIMD": "AVX_512",  "GMX_DOUBLE": "OFF" },
+    { "GMX_SIMD": "AVX_512",  "GMX_DOUBLE": "ON",  "GMX_GPU": "OFF", "CMAKE_CUDA_ARCHITECTURES": "" },
+    { "GMX_SIMD": "AVX2_256", "GMX_DOUBLE": "OFF", "GMX_MPI": "ON" },
+    { "GMX_SIMD": "AVX_512",  "GMX_DOUBLE": "OFF", "GMX_MPI": "ON" },
+    { "GMX_SIMD": "AVX2_256", "GMX_DOUBLE": "OFF", "GMX_MPI": "ON", "GMX_GPU": "OFF", "CMAKE_CUDA_ARCHITECTURES": "" },
+    { "GMX_SIMD": "AVX_512",  "GMX_DOUBLE": "OFF", "GMX_MPI": "ON", "GMX_GPU": "OFF", "CMAKE_CUDA_ARCHITECTURES": "" }
+  ]
+}
