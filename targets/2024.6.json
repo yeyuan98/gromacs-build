@@ -13,6 +13,7 @@
     "GMX_MPI": "OFF",
     "GMX_BUILD_SHARED_EXE": "ON",
     "CMAKE_FIND_LIBRARY_SUFFIXES": ".a",
+    "CMAKE_PREFIX_PATH": "/usr/local/cuda",
     "GMXAPI": "OFF",
     "GMX_INSTALL_NBLIB_API": "OFF",
     "CMAKE_CUDA_ARCHITECTURES": "86;89;90;120",
