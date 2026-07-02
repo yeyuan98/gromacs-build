@@ -1,6 +1,6 @@
 {
-  "gromacs_version": "2026.2",
-  "tarball_url": "https://ftp.gromacs.org/gromacs/gromacs-2026.2.tar.gz",
+  "gromacs_version": "2026.3",
+  "tarball_url": "https://ftp.gromacs.org/gromacs/gromacs-2026.3.tar.gz",
   "runner": "ubuntu-22.04",
   "cuda_version": "13.0",
   "cuda_repo_distro": "ubuntu2204",
